@@ -87,7 +87,7 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
         </div>
       ) : null}
 
-      {updated === "1" ? (
+      {updated === "1" && canEdit ? (
         <div className="rounded-2xl border border-mint/30 bg-mint/10 px-4 py-3">
           <p className="text-[13px] font-semibold text-mint">Changes saved</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mint/75">
@@ -176,7 +176,7 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
 
       <Pipeline campaign={campaign} />
 
-      <CampaignPreview campaign={campaign} showOperatorNote={!sentBack} />
+      <CampaignPreview campaign={campaign} showOperatorNote={!sentBack} showVerification />
     </div>
   );
 }

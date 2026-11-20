@@ -23,6 +23,15 @@ interface Draft {
   story: string;
   targetObject: string;
   targetObjectHint: string;
+  answerQuestion: string;
+  answer: string;
+  hint1: string;
+  hint2: string;
+  extSocialClue: string;
+  extWebClue: string;
+  extInstoreClue: string;
+  extAnswer: string;
+  extHint: string;
   rewardAmount: string;
   couponItem: string;
   couponMinSpend: string;
@@ -43,6 +52,15 @@ const INITIAL: Draft = {
   story: "",
   targetObject: "",
   targetObjectHint: "",
+  answerQuestion: "",
+  answer: "",
+  hint1: "",
+  hint2: "",
+  extSocialClue: "",
+  extWebClue: "",
+  extInstoreClue: "",
+  extAnswer: "",
+  extHint: "",
   rewardAmount: "100",
   couponItem: "",
   couponMinSpend: "15000",
@@ -70,6 +88,15 @@ function draftFromCampaign(campaign: Campaign): Draft {
     story: campaign.story,
     targetObject: campaign.targetObject,
     targetObjectHint: campaign.targetObjectHint,
+    answerQuestion: campaign.answerQuestion,
+    answer: campaign.answer,
+    hint1: campaign.hint1,
+    hint2: campaign.hint2,
+    extSocialClue: campaign.extSocialClue,
+    extWebClue: campaign.extWebClue,
+    extInstoreClue: campaign.extInstoreClue,
+    extAnswer: campaign.extAnswer,
+    extHint: campaign.extHint,
     rewardAmount: String(campaign.rewardAmount),
     couponItem: campaign.couponItem,
     couponMinSpend: String(campaign.couponMinSpend),
@@ -240,6 +267,22 @@ export function CampaignForm({
           instoreReady && draft.targetObject.trim().length >= 4 && draft.targetObjectHint.trim().length >= 8,
         label: "In-store trail",
         detail: "The object to find, where to look, and one physical clue.",
+      },
+      {
+        done: draft.answerQuestion.trim().length >= 8 && draft.answer.trim().length > 0,
+        label: "Counter answer",
+        detail: "The question players answer, kept separate from the clues.",
+      },
+      {
+        done:
+          [draft.extSocialClue, draft.extWebClue, draft.extInstoreClue, draft.extAnswer].every(
+            (value) => value.trim().length >= 8,
+          ) ||
+          [draft.extSocialClue, draft.extWebClue, draft.extInstoreClue, draft.extAnswer].every(
+            (value) => value.trim().length === 0,
+          ),
+        label: "Extended mystery (optional)",
+        detail: "All four parts, or none at all.",
       },
       {
         done: draft.couponItem.trim().length >= 3 && Number(draft.couponValidDays) >= 1,
@@ -479,37 +522,6 @@ export function CampaignForm({
           title="In-store trail"
           hint="What players look for inside the shop. Keep it solvable in 3–5 minutes."
         >
-          <Field
-            label="Target object"
-            htmlFor="targetObject"
-            error={errors.targetObject}
-            hint="The single thing the player must find and photograph."
-          >
-            <input
-              id="targetObject"
-              className={inputClass(Boolean(errors.targetObject))}
-              value={draft.targetObject}
-              onChange={(event) => set("targetObject", event.target.value)}
-              placeholder="The ninth cup — a chipped celadon cup on the top shelf"
-              maxLength={150}
-            />
-          </Field>
-          <Field
-            label="Where to look"
-            htmlFor="targetObjectHint"
-            error={errors.targetObjectHint}
-            hint="Enough to guide a first-time visitor without giving the whole hunt away."
-          >
-            <textarea
-              id="targetObjectHint"
-              className={`${inputClass(Boolean(errors.targetObjectHint))} min-h-20 resize-y leading-relaxed`}
-              value={draft.targetObjectHint}
-              onChange={(event) => set("targetObjectHint", event.target.value)}
-              placeholder="Behind the espresso machine, above the grinder. Look for a hairline crack."
-              maxLength={320}
-            />
-          </Field>
-
           {errors.instoreClues ? (
             <p className="text-[12px] text-rust">{errors.instoreClues}</p>
           ) : null}
@@ -559,10 +571,210 @@ export function CampaignForm({
           >
             + Add in-store clue
           </button>
+
+          <div className="rounded-xl border border-berry/30 bg-berry/5 p-4">
+            <p className="mono-label text-berry/80">Private verification</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-berry/85">
+              Never shown to players. The operator uses this description to decide whether a
+              submitted photo really shows the object a visitor can reach.
+            </p>
+            <div className="mt-3 space-y-4">
+              <Field
+                label="Target object"
+                htmlFor="targetObject"
+                error={errors.targetObject}
+                hint="The single thing the player must find and photograph."
+              >
+                <input
+                  id="targetObject"
+                  className={inputClass(Boolean(errors.targetObject))}
+                  value={draft.targetObject}
+                  onChange={(event) => set("targetObject", event.target.value)}
+                  placeholder="The ninth cup — a chipped celadon cup on the top shelf"
+                  maxLength={150}
+                />
+              </Field>
+              <Field
+                label="Where to look"
+                htmlFor="targetObjectHint"
+                error={errors.targetObjectHint}
+                hint="Enough for the operator to confirm the spot, not a second player clue."
+              >
+                <textarea
+                  id="targetObjectHint"
+                  className={`${inputClass(Boolean(errors.targetObjectHint))} min-h-20 resize-y leading-relaxed`}
+                  value={draft.targetObjectHint}
+                  onChange={(event) => set("targetObjectHint", event.target.value)}
+                  placeholder="Behind the espresso machine, above the grinder. Look for a hairline crack."
+                  maxLength={320}
+                />
+              </Field>
+            </div>
+          </div>
         </Section>
 
         <Section
           step="05"
+          title="The counter&apos;s question"
+          hint="What the player must work out after both trails. Checked on the server; never sent to a player's browser."
+        >
+          <div className="rounded-xl border border-berry/30 bg-berry/5 px-4 py-3">
+            <p className="text-[11.5px] leading-relaxed text-berry/85">
+              Private. The answer and both hints stay on the server. A campaign cannot be submitted
+              for review until the question and answer are filled in, so nothing unplayable reaches
+              an operator.
+            </p>
+          </div>
+          <Field
+            label="Question players are asked"
+            htmlFor="answerQuestion"
+            error={errors.answerQuestion}
+            hint="It should need both the online trail and something only visible in the shop."
+          >
+            <input
+              id="answerQuestion"
+              className={inputClass(Boolean(errors.answerQuestion))}
+              value={draft.answerQuestion}
+              onChange={(event) => set("answerQuestion", event.target.value)}
+              placeholder="How many pours does the ninth cup's recipe call for?"
+              maxLength={200}
+            />
+          </Field>
+          <Field
+            label="Answer"
+            htmlFor="answer"
+            error={errors.answer}
+            hint="Short. Numbers and single words work best; number words are accepted."
+          >
+            <input
+              id="answer"
+              className={inputClass(Boolean(errors.answer))}
+              value={draft.answer}
+              onChange={(event) => set("answer", event.target.value)}
+              placeholder="5"
+              maxLength={60}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Hint at 3 minutes"
+              htmlFor="hint1"
+              error={errors.hint1}
+              hint="Nudge without giving the answer away."
+            >
+              <textarea
+                id="hint1"
+                className={`${inputClass(Boolean(errors.hint1))} min-h-20 resize-y leading-relaxed`}
+                value={draft.hint1}
+                onChange={(event) => set("hint1", event.target.value)}
+                placeholder="The rule names two things to count: every shelf, and one extra pour."
+                maxLength={260}
+              />
+            </Field>
+            <Field
+              label="Hint at 5 minutes"
+              htmlFor="hint2"
+              error={errors.hint2}
+              hint="The later note may be more direct. Hints never change the reward."
+            >
+              <textarea
+                id="hint2"
+                className={`${inputClass(Boolean(errors.hint2))} min-h-20 resize-y leading-relaxed`}
+                value={draft.hint2}
+                onChange={(event) => set("hint2", event.target.value)}
+                placeholder="Four shelves, one pour each. Then one more for the ninth cup."
+                maxLength={260}
+              />
+            </Field>
+          </div>
+        </Section>
+
+        <Section
+          step="06"
+          title="Optional extended mystery"
+          hint="A second, harder trail that unlocks an achievement and coupon eligibility. Leave all five fields empty if this campaign has none."
+        >
+          <Field
+            label="Social-style clue"
+            htmlFor="extSocialClue"
+            error={errors.extSocialClue}
+            hint="A post, photo or comment the player can open."
+          >
+            <textarea
+              id="extSocialClue"
+              className={`${inputClass(Boolean(errors.extSocialClue))} min-h-20 resize-y leading-relaxed`}
+              value={draft.extSocialClue}
+              onChange={(event) => set("extSocialClue", event.target.value)}
+              placeholder="The letter was posted once, in 2019. The caption reads: “You kept the ninth. I kept the eleventh.”"
+              maxLength={400}
+            />
+          </Field>
+          <Field
+            label="Merchant website clue"
+            htmlFor="extWebClue"
+            error={errors.extWebClue}
+            hint="Something on the shop's own site, page or history."
+          >
+            <textarea
+              id="extWebClue"
+              className={`${inputClass(Boolean(errors.extWebClue))} min-h-20 resize-y leading-relaxed`}
+              value={draft.extWebClue}
+              onChange={(event) => set("extWebClue", event.target.value)}
+              placeholder="The about page says the shop began with nine cups on a market-stall table."
+              maxLength={400}
+            />
+          </Field>
+          <Field
+            label="In-store observation"
+            htmlFor="extInstoreClue"
+            error={errors.extInstoreClue}
+            hint="The one thing that can only be seen inside the shop."
+          >
+            <textarea
+              id="extInstoreClue"
+              className={`${inputClass(Boolean(errors.extInstoreClue))} min-h-20 resize-y leading-relaxed`}
+              value={draft.extInstoreClue}
+              onChange={(event) => set("extInstoreClue", event.target.value)}
+              placeholder="The framed photo of the 1998 stall: nine cups on the table."
+              maxLength={400}
+            />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Final answer"
+              htmlFor="extAnswer"
+              error={errors.extAnswer}
+              hint="Not shown to players before they solve it."
+            >
+              <input
+                id="extAnswer"
+                className={inputClass(Boolean(errors.extAnswer))}
+                value={draft.extAnswer}
+                onChange={(event) => set("extAnswer", event.target.value)}
+                placeholder="11"
+                maxLength={60}
+              />
+            </Field>
+            <Field
+              label="Extended hint (optional)"
+              htmlFor="extHint"
+              error={errors.extHint}
+              hint="Shown once all three extended clues are open."
+            >
+              <input
+                id="extHint"
+                className={inputClass(Boolean(errors.extHint))}
+                value={draft.extHint}
+                onChange={(event) => set("extHint", event.target.value)}
+                placeholder="Nine cups on the stall. Two cups that never went home."
+                maxLength={260}
+              />
+            </Field>
+          </div>
+        </Section>
+
+        <Section
+          step="07"
           title="Reward &amp; coupon"
           hint="Rewards are fixed and valueless in this prototype. Coupon terms are shown before anyone plays."
         >
@@ -647,9 +859,10 @@ export function CampaignForm({
 
         <div className="flex flex-col gap-3 border-t border-line/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-sm text-[12px] leading-relaxed text-sage/55">
-            Every required field must be complete before this campaign can be saved, so there is no
-            half-finished draft. {isEditing ? "Saving updates this private campaign" : `Saving creates a private draft for ${merchantName}`}
-            {" "}— nothing is visible to players until an operator approves it.
+            Story, clues, target and coupon fields must be complete before this campaign can be
+            saved. {isEditing ? "Saving updates this private campaign" : `Saving creates a private draft for ${merchantName}`}
+            {" "}— nothing is visible to players until an operator approves it. The counter question
+            and answer can be filled in later, but the campaign cannot be submitted without them.
           </p>
           <div className="flex items-center gap-2">
             <Link href="/merchant" className="btn-ghost">

@@ -4,30 +4,30 @@
 
 ## P0 — full end-to-end
 
-- [x] Merchant creates one campaign: shop details, permitted spot, SNS/site clue URLs, target object, reward, coupon terms. *(P0.1 — object is described in text and photographing it arrives with P0.2 evidence capture; no image upload yet.)*
+- [x] Merchant creates one campaign: shop details, permitted spot, SNS/site clue URLs, target object, reward, coupon terms. *(P0.1 — object is described in text; evidence capture arrives with P0.2, reference-image upload is still out of scope.)*
 - [x] Merchant can correct a campaign while it is a draft or after it is sent back, then resubmit it. *(P0.1 — editing is locked while in review and after publishing.)*
-- [x] Operator previews and approves the campaign. *(P0.1 — approve publishes to discovery; reject requires a note, and that note is kept through resubmission so the operator can compare revisions.)*
-- [ ] Visitor selects the shop and solves an easy basic in-store finding mission. *(P0.1 ships published campaign discovery and the full briefing only; the playable run is P0.2.)*
-- [ ] Optional hints appear at **3 and 5 minutes**; hint usage does not change the fixed reward.
-- [ ] Visitor uses **in-app camera**, explicitly permits location, and submits photo/time/location evidence. A limited verifier reports what was checked.
-- [ ] One actual Devnet test-token reward transaction is initiated and shown with confirmed chain status and explorer link.
-- [ ] MagicBlock is **actually exercised** for a relevant feature, with transaction / execution evidence.
-- [ ] Optional SNS + website + in-store ARG resolves to an achievement and conditional secret-menu coupon.
-- [ ] Staff opens the issued coupon and completes a redemption action.
-- [ ] Merchant dashboard reflects visit, reward transaction and coupon result.
-- [ ] Replaying the full walkthrough requires no developer-only database patching or pre-recorded 'payment succeeded' screen.
+- [x] Operator previews and approves the campaign. *(P0.1 — approve publishes to discovery; reject requires a note that survives resubmission. P0.2 adds a submit gate: no counter answer, no submission.)*
+- [x] Visitor selects the shop and solves an easy basic in-store finding mission. *(P0.2 — staged online → in-store trail, a server-checked counter answer, and an in-app evidence step.)*
+- [x] Optional hints appear at **3 and 5 minutes**; hint usage does not change the fixed reward. *(P0.2 — unlock time is derived from the session start on the server, not from a page refresh.)*
+- [x] Visitor uses **in-app camera**, explicitly permits location, and submits photo/time/location evidence. A limited verifier reports what was checked. *(P0.2 — the verifier is a human operator; camera, upload and a labelled simulation are supported, and location is optional.)*
+- [ ] One actual Devnet test-token reward transaction is initiated and shown with confirmed chain status and explorer link. *(P0.3 — P0.2 records the completion, reward amount and `payout_status = 'pending'`.)*
+- [ ] MagicBlock is **actually exercised** for a relevant feature, with transaction / execution evidence. *(P0.3.)*
+- [x] Optional SNS + website + in-store ARG resolves to an achievement and conditional secret-menu coupon. *(P0.2 — social-style clue, merchant-site clue, in-store observation and a final answer; sets `coupon_eligible`. Coupon issuance itself is P0.4.)*
+- [ ] Staff opens the issued coupon and completes a redemption action. *(P0.4.)*
+- [ ] Merchant dashboard reflects visit, reward transaction and coupon result. *(Needs P0.3/P0.4 data.)*
+- [ ] Replaying the full walkthrough requires no developer-only database patching or pre-recorded 'payment succeeded' screen. *(P0.2 needs no patching; the reward leg is still absent.)*
 
 ## P1 — make it feel like a product
 
-- [ ] One compelling fictional branded ARG (e.g. a lost recipe), not a collection of disconnected tasks.
-- [ ] Fast, mobile-friendly screens; functional permission/failed-attempt UX.
-- [ ] Coupon condition clearly shown **before** ARG (e.g. demo purchase threshold, expiry, availability).
-- [ ] Personal non-financial achievements; no first-to-solve and no race incentives.
-- [ ] Live demo and/or explicitly labeled simulation for physical spaces.
+- [x] One compelling fictional branded ARG (e.g. a lost recipe), not a collection of disconnected tasks. *(P0.2 — The Ninth Cup.)*
+- [x] Fast, mobile-friendly screens; functional permission/failed-attempt UX. *(P0.2 — mobile-first single column, denied-camera and denied-location paths, wrong-answer handling, rejected-evidence resubmission.)*
+- [x] Coupon condition clearly shown **before** ARG (e.g. demo purchase threshold, expiry, availability). *(P0.1 briefing; P0.2 keeps it on the briefing and in the completion card.)*
+- [x] Personal non-financial achievements; no first-to-solve and no race incentives. *(P0.2 — trail-complete and extended-mystery achievements.)*
+- [x] Live demo and/or explicitly labeled simulation for physical spaces. *(P0.2 — the demo simulation is labelled on the image and in the operator queue.)*
 
 ## P2 — demo proof
 
-- [ ] Reviewer can follow the whole journey without explanation.
+- [ ] Reviewer can follow the whole journey without explanation. *(P0.2 covers campaign → play → evidence → verification; the payout leg is missing.)*
 - [ ] Real MagicBlock operation can be independently identified.
 - [ ] Explorer verifies a Devnet transfer; test token identified honestly.
 - [ ] Screenshots/recording, issue list, known limitations.
@@ -36,4 +36,4 @@
 
 Custom duplicate-payout prevention, custom coupon anti-replay guards, advanced budget accounting, fraud model, formal security review, mainnet, real-redeemable coupons, complex receipt/group systems, regional payment rails, country-by-country legal research.
 
-**Boundary:** native chain guarantees are reused; they must not be described as providing these application-level guarantees. Do not use real money while they are not designed and tested.
+**Boundary:** native chain guarantees are reused; they must not be described as providing these application-level guarantees. Camera/location evidence is reviewed by a person and is never claimed as cryptographic proof. Do not use real money while the remaining phases are unimplemented.

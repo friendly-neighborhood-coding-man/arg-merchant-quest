@@ -1,10 +1,27 @@
 import Link from "next/link";
 import type { Campaign } from "@/lib/types";
+import type { PlayerProgress } from "@/lib/quest-store";
 import { formatKrw } from "@/lib/format";
 
-export function QuestCard({ campaign }: { campaign: Campaign }) {
+const STAGE_LABEL: Record<PlayerProgress["stage"], string> = {
+  online: "Reading the trail",
+  instore: "In the shop",
+  answer: "At the counter",
+  evidence: "Evidence needed",
+  reviewing: "In review",
+  complete: "Completed",
+};
+
+export function QuestCard({
+  campaign,
+  progress,
+}: {
+  campaign: Campaign;
+  progress?: PlayerProgress | null;
+}) {
   const online = campaign.clues.filter((clue) => clue.kind === "online").length;
   const instore = campaign.clues.filter((clue) => clue.kind === "instore").length;
+  const playable = Boolean(campaign.answer.trim());
 
   return (
     <article className="panel group relative flex h-full flex-col overflow-hidden p-5 transition duration-200 hover:-translate-y-0.5 hover:border-amber/40">
@@ -13,7 +30,13 @@ export function QuestCard({ campaign }: { campaign: Campaign }) {
         className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber/70 to-transparent opacity-0 transition group-hover:opacity-100"
       />
       <div className="flex items-center justify-between gap-3">
-        <span className="chip border-mint/30 text-mint">Live</span>
+        {progress?.verified ? (
+          <span className="chip border-mint/40 bg-mint/10 text-mint">Completed</span>
+        ) : progress ? (
+          <span className="chip border-amber/40 bg-amber/10 text-amber-soft">In progress</span>
+        ) : (
+          <span className="chip border-mint/30 text-mint">Live</span>
+        )}
         <span className="font-mono text-[10px] tracking-[0.16em] text-sage/45 uppercase">
           {campaign.shopArea}
         </span>
@@ -46,9 +69,24 @@ export function QuestCard({ campaign }: { campaign: Campaign }) {
       </dl>
 
       <div className="mt-auto pt-4">
+        {progress ? (
+          <div className="mb-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-sage/60">{STAGE_LABEL[progress.stage]}</span>
+              <span className="font-mono text-sage/45">{progress.percent}%</span>
+            </div>
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-line/70">
+              <div
+                className={progress.verified ? "h-full bg-mint" : "h-full bg-amber/80"}
+                style={{ width: `${progress.percent}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
         <p className="text-[11.5px] text-sage/55">
           {campaign.shopName}
           {campaign.merchantName !== campaign.shopName ? ` · ${campaign.merchantName}` : ""}
+          {!playable ? " · briefing only" : ""}
         </p>
       </div>
     </article>

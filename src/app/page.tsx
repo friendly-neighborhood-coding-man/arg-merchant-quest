@@ -26,9 +26,9 @@ const LOOP = [
     n: "03",
     role: "Player",
     title: "Follow the clues",
-    body: "Read the online trail, walk the shop, find the object, and photograph it with explicit permissions.",
-    state: "partial",
-    stateLabel: "Discovery live · play in P0.2",
+    body: "Read the online trail, walk the shop, answer the counter, and photograph the object with explicit permissions.",
+    state: "live",
+    stateLabel: "Playable now",
   },
   {
     n: "04",
@@ -67,7 +67,7 @@ const ROLES = [
     href: "/quests",
     role: "Player",
     title: "Discover",
-    body: "Browse published quests: the story, the trails, the object and the exact coupon terms.",
+    body: "Start a trail, follow it into the shop, submit evidence and collect achievements.",
     state: "Live",
   },
   {
@@ -284,15 +284,15 @@ export default function HomePage() {
         <div className="panel p-5">
           <div className="flex items-center justify-between">
             <p className="mono-label">What works right now</p>
-            <span className="chip border-mint/30 text-mint">P0.1</span>
+            <span className="chip border-mint/30 text-mint">P0.2</span>
           </div>
           <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-sage/80">
             {[
               "Merchant creates a campaign with campaign-specific online and in-store clues.",
-              "Drafts are private; submission moves them into a real operator review queue.",
-              "Operators approve into player discovery or reject with a written note.",
-              "Published campaigns are discoverable with reward and coupon terms up front.",
-              "SQLite persistence — every view reads the same connected application state.",
+              "Published trails are playable: staged clues, a server-checked answer, 3- and 5-minute hints.",
+              "Camera or uploaded evidence is reviewed by an operator — never auto-approved.",
+              "An optional extended mystery awards a second achievement and coupon eligibility.",
+              "One SQLite database — every role reads the same connected state.",
             ].map((item) => (
               <li key={item} className="flex gap-2">
                 <span className="mt-1 text-mint" aria-hidden>
@@ -312,10 +312,10 @@ export default function HomePage() {
           <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-sage/80">
             {[
               "No rewards are paid yet: the Devnet transfer and MagicBlock integration land in P0.3.",
-              "Quest play (camera, location permission, evidence) is not built until P0.2.",
+              "Evidence review is a person, not image recognition — there are no fake AI verdicts.",
               "Coupons are demo entitlements and cannot be redeemed in a real business.",
-              "No sign-in yet — the studio acts as one seeded demo merchant.",
-              "Camera and location evidence will be limited signals, never claimed as proof of presence.",
+              "No sign-in yet — a browser cookie is the whole player identity.",
+              "Camera and location are limited signals, never claimed as proof of presence.",
             ].map((item) => (
               <li key={item} className="flex gap-2">
                 <span className="mt-1 text-amber/70" aria-hidden>

@@ -39,10 +39,9 @@ export default function StaffPage() {
           </span>
         </div>
         <p className="mt-3 max-w-2xl text-[13.5px] leading-relaxed text-sage/75">
-          A coupon only exists after a verified in-store completion issues one. The quest flow
-          (P0.2), the Devnet reward (P0.3) and coupon issuance (P0.4) are not connected in this
-          build, so this counter has nothing to redeem. It is intentionally not a mocked redemption
-          screen.
+          Quest play now records operator-verified completions, but coupon issuance (P0.4) and the
+          Devnet reward (P0.3) are still ahead, so this counter has nothing to redeem yet. It is
+          intentionally not a mocked redemption screen.
         </p>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-3">

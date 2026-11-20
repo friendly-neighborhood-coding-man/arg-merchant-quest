@@ -14,9 +14,13 @@ function Meta({ label, value }: { label: string; value: React.ReactNode }) {
 export function CampaignPreview({
   campaign,
   showOperatorNote = false,
+  showVerification = false,
 }: {
   campaign: Campaign;
   showOperatorNote?: boolean;
+  /** P0.2 private block: target object, counter answer and hints. Never render
+   * this on a player-facing page. */
+  showVerification?: boolean;
 }) {
   const onlineClues = campaign.clues.filter((clue) => clue.kind === "online");
   const instoreClues = campaign.clues.filter((clue) => clue.kind === "instore");
@@ -54,20 +58,59 @@ export function CampaignPreview({
           </section>
         ) : null}
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          <div className="panel-flat p-4">
-            <p className="mono-label">The find</p>
-            <p className="mt-2 text-[15px] leading-snug font-semibold text-white/90">
-              {campaign.targetObject}
-            </p>
-          </div>
-          <div className="panel-flat p-4">
-            <p className="mono-label">Where to look</p>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-sage/80">
-              {campaign.targetObjectHint}
-            </p>
-          </div>
-        </section>
+        {showVerification ? (
+          <section className="rounded-2xl border border-berry/30 bg-berry/5 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="mono-label text-berry/80">Private verification</p>
+              <span className="chip border-berry/40 bg-berry/10 text-berry">Never shown to players</span>
+            </div>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="mono-label text-[9px]">Target object</p>
+                <p className="mt-1 text-[14px] leading-snug font-semibold text-white/90">
+                  {campaign.targetObject}
+                </p>
+              </div>
+              <div>
+                <p className="mono-label text-[9px]">Where it is</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-sage/80">
+                  {campaign.targetObjectHint}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3 border-t border-berry/20 pt-3 sm:grid-cols-3">
+              <div>
+                <p className="mono-label text-[9px]">Counter question</p>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-sage/80">
+                  {campaign.answerQuestion || "Not configured — the trail cannot be played."}
+                </p>
+              </div>
+              <div>
+                <p className="mono-label text-[9px]">Answer</p>
+                <p className="mt-1 font-mono text-[13px] text-amber">
+                  {campaign.answer || "—"}
+                </p>
+              </div>
+              <div>
+                <p className="mono-label text-[9px]">Hints (3 / 5 min)</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-sage/75">
+                  {campaign.hint1 || "Fallback hint"} / {campaign.hint2 || "Fallback hint"}
+                </p>
+              </div>
+            </div>
+            {campaign.extAnswer ? (
+              <div className="mt-3 border-t border-berry/20 pt-3">
+                <p className="mono-label text-[9px] text-berry/70">Extended mystery (optional)</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-sage/75">
+                  Answer: <span className="font-mono text-amber">{campaign.extAnswer}</span> ·{" "}
+                  {campaign.extSocialClue ? "social clue set" : "no social clue"} ·{" "}
+                  {campaign.extWebClue ? "website clue set" : "no website clue"} ·{" "}
+                  {campaign.extInstoreClue ? "in-store clue set" : "no in-store clue"}
+                </p>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
         <section>
           <div className="flex items-center justify-between gap-3">

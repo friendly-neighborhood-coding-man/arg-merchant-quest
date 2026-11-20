@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { PageHeader, StatusBadge } from "@/components/ui";
 import { formatKrw, timeAgo } from "@/lib/format";
 import { listAllCampaigns, listCampaignsByStatus } from "@/lib/store";
+import { questStats } from "@/lib/quest-store";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function OperatorPage({ searchParams }: PageProps) {
   const { reviewed } = await searchParams;
   const pending = listCampaignsByStatus("pending");
   const all = listAllCampaigns();
+  const quests = questStats();
 
   return (
     <div className="wrap space-y-8 pt-10">
@@ -25,9 +27,14 @@ export default async function OperatorPage({ searchParams }: PageProps) {
         title="Review desk"
         description="Nothing reaches players without this step. Check that the trail is playable in 3–5 minutes, the in-store spot is customer-safe and merchant-approved, the reward copy is honest, and the coupon conditions are visible before play."
         actions={
-          <Link href="/quests" className="btn-ghost">
-            Player view
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link href="/operator/evidence" className="btn-primary">
+              Evidence queue ({quests.pendingEvidence})
+            </Link>
+            <Link href="/quests" className="btn-ghost">
+              Player view
+            </Link>
+          </div>
         }
       />
 
@@ -41,6 +48,25 @@ export default async function OperatorPage({ searchParams }: PageProps) {
           Campaign sent back to the merchant with your note.
         </div>
       ) : null}
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="panel-flat px-4 py-3">
+          <p className="mono-label text-[9px]">Sessions running</p>
+          <p className="mt-1 font-display text-2xl text-white/90">{quests.active}</p>
+        </div>
+        <div className="panel-flat px-4 py-3">
+          <p className="mono-label text-[9px]">Completions verified</p>
+          <p className="mt-1 font-display text-2xl text-mint">{quests.completed}</p>
+        </div>
+        <div className="panel-flat px-4 py-3">
+          <p className="mono-label text-[9px]">Evidence waiting</p>
+          <p className="mt-1 font-display text-2xl text-amber">{quests.pendingEvidence}</p>
+        </div>
+        <div className="panel-flat px-4 py-3">
+          <p className="mono-label text-[9px]">Extended solved</p>
+          <p className="mt-1 font-display text-2xl text-white/90">{quests.extendedSolved}</p>
+        </div>
+      </div>
 
       <section>
         <div className="flex items-baseline justify-between gap-3">

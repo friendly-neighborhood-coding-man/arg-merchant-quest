@@ -32,6 +32,15 @@ interface CampaignRow {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  answer_question: string;
+  answer: string;
+  hint_1: string;
+  hint_2: string;
+  ext_social_clue: string;
+  ext_web_clue: string;
+  ext_instore_clue: string;
+  ext_answer: string;
+  ext_hint: string;
 }
 
 interface ClueRow {
@@ -100,6 +109,15 @@ function toCampaign(row: CampaignRow, clues: Clue[]): Campaign {
     publishedAt: row.published_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    answerQuestion: row.answer_question,
+    answer: row.answer,
+    hint1: row.hint_1,
+    hint2: row.hint_2,
+    extSocialClue: row.ext_social_clue,
+    extWebClue: row.ext_web_clue,
+    extInstoreClue: row.ext_instore_clue,
+    extAnswer: row.ext_answer,
+    extHint: row.ext_hint,
     clues,
   };
 }
@@ -282,8 +300,10 @@ export function createCampaign(input: CampaignInput, merchantId: string): Campai
       `INSERT INTO campaigns (
          id, merchant_id, slug, title, shop_name, shop_area, shop_address, teaser, story,
          target_object, target_object_hint, reward_amount, coupon_item, coupon_min_spend,
-         coupon_valid_days, coupon_notes, status, submitted_at, created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?)`,
+         coupon_valid_days, coupon_notes, status, submitted_at, created_at, updated_at,
+         answer_question, answer, hint_1, hint_2,
+         ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       merchantId,
@@ -303,6 +323,15 @@ export function createCampaign(input: CampaignInput, merchantId: string): Campai
       input.couponNotes,
       now,
       now,
+      input.answerQuestion,
+      input.answer,
+      input.hint1,
+      input.hint2,
+      input.extSocialClue,
+      input.extWebClue,
+      input.extInstoreClue,
+      input.extAnswer,
+      input.extHint,
     );
 
     const insertClue = db.prepare(
@@ -388,7 +417,9 @@ export function updateCampaign(
       `UPDATE campaigns
        SET title = ?, shop_name = ?, shop_area = ?, shop_address = ?, teaser = ?, story = ?,
            target_object = ?, target_object_hint = ?, reward_amount = ?, coupon_item = ?,
-           coupon_min_spend = ?, coupon_valid_days = ?, coupon_notes = ?, updated_at = ?
+           coupon_min_spend = ?, coupon_valid_days = ?, coupon_notes = ?, updated_at = ?,
+           answer_question = ?, answer = ?, hint_1 = ?, hint_2 = ?,
+           ext_social_clue = ?, ext_web_clue = ?, ext_instore_clue = ?, ext_answer = ?, ext_hint = ?
        WHERE id = ?`,
     ).run(
       input.title,
@@ -405,6 +436,15 @@ export function updateCampaign(
       input.couponValidDays,
       input.couponNotes,
       now,
+      input.answerQuestion,
+      input.answer,
+      input.hint1,
+      input.hint2,
+      input.extSocialClue,
+      input.extWebClue,
+      input.extInstoreClue,
+      input.extAnswer,
+      input.extHint,
       id,
     );
     replaceClues(db, id, input);
@@ -430,6 +470,14 @@ export function submitCampaignForReview(id: string, merchantId: string): Mutatio
         campaign.status === "pending"
           ? "This campaign is already waiting for operator review."
           : "This campaign is already live.",
+    };
+  }
+  if (!campaign.answer.trim() || !campaign.answerQuestion.trim()) {
+    return {
+      ok: false,
+      status: 409,
+      error:
+        "Add the counter question and its answer before submitting. Players solve that answer to unlock evidence, so the trail is not playable without it.",
     };
   }
 
@@ -459,6 +507,13 @@ export function reviewCampaign(
   if (!campaign) return { ok: false, status: 404, error: "Campaign not found." };
   if (campaign.status !== "pending") {
     return { ok: false, status: 409, error: "Only campaigns awaiting review can be reviewed." };
+  }
+  if (decision === "approve" && (!campaign.answer.trim() || !campaign.answerQuestion.trim())) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Send this back: it has no counter answer, so players could not complete it.",
+    };
   }
 
   const now = new Date().toISOString();

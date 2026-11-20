@@ -29,6 +29,20 @@ export interface Campaign {
   couponMinSpend: number;
   couponValidDays: number;
   couponNotes: string;
+  /**
+   * P0.2 private campaign fields. None of these are sent to a player's browser:
+   * the answer is checked on the server and the verification details belong to
+   * the merchant and the operator. Player-visible clues live in `clues`.
+   */
+  answerQuestion: string;
+  answer: string;
+  hint1: string;
+  hint2: string;
+  extSocialClue: string;
+  extWebClue: string;
+  extInstoreClue: string;
+  extAnswer: string;
+  extHint: string;
   status: CampaignStatus;
   operatorNote: string | null;
   /** The most recent rejection reason. Survives a resubmission so the operator
@@ -60,3 +74,14 @@ export const CAMPAIGN_STATUS_LABEL: Record<CampaignStatus, string> = {
 };
 
 export const REWARD_UNIT_COPY = "Devnet test credits";
+
+export type QuestStage =
+  | "online"
+  | "instore"
+  | "answer"
+  | "evidence"
+  | "reviewing"
+  | "complete";
+
+export type EvidenceKind = "camera" | "upload" | "simulation";
+export type EvidenceStatus = "pending" | "approved" | "rejected";

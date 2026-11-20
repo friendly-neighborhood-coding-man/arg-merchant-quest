@@ -78,7 +78,7 @@ export default async function OperatorCampaignReview({ params }: PageProps) {
             </ul>
           </div>
 
-          <CampaignPreview campaign={campaign} showOperatorNote />
+          <CampaignPreview campaign={campaign} showOperatorNote showVerification />
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
