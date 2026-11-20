@@ -1,6 +1,6 @@
 # ARG Merchant Quest
 
-> **Status: repository scaffold — not a working app yet.** No live payments, ARG verification, or coupon redemption have been implemented.
+> **Status: P0.1 delivered — merchant campaign pipeline.** Campaign creation, operator approval and player discovery run against a real SQLite database. Quest play (P0.2), the Devnet/MagicBlock payout (P0.3) and coupon issuance/redemption (P0.4) are not implemented yet; reward and coupon copy in this build is terms-only.
 
 A real-world ARG advertising experience powered by Solana and MagicBlock. Merchants publish clue-driven campaigns; visitors discover approved online/in-store clues, photograph a target object, earn a fixed visit reward, and optionally unlock a merchant-specific secret-menu coupon.
 
@@ -30,8 +30,10 @@ A real-world ARG advertising experience powered by Solana and MagicBlock. Mercha
 
 ## Repository layout
 
-- `apps/web/` — single web app for visitor / merchant / operator / staff (planned)
-- `packages/chain/` — Solana + MagicBlock client utilities (planned)
+- `src/app/` — the single web app: merchant, operator, player and staff routes plus API routes
+- `src/lib/` — SQLite persistence, campaign lifecycle rules, input validation
+- `src/components/` — shared UI (campaign dossier, forms, review controls)
+- `apps/web/`, `packages/chain/` — original planning notes, kept for context
 - `docs/MVP.md` — prioritized acceptance contract
 - `docs/ARCHITECTURE.md` — boundaries and data flow
 - `docs/DEMO.md` — demo checklist
@@ -44,6 +46,21 @@ No mainnet or national payment rails in this prototype. For deployment with real
 
 ## Getting started
 
-This is an initial documentation scaffold. There is **not yet an executable web app**. Build the single journey first; see [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md).
+Requires Node.js 22.5+ (verified on Node 26). Persistence uses the built-in `node:sqlite` module, so there is no native build step.
+
+```bash
+npm install
+npm run dev          # http://localhost:3000
+```
+
+The database is created on first request at `.data/arg.db` and seeded with three fictional campaigns (one draft, one live, one waiting for review). Delete `.data/arg.db` to reseed. No secrets are required for P0.1; `.env.example` only holds placeholders for the later chain work.
+
+### Demo path
+
+1. `/merchant` — demo studio for *Umbra Coffee Roasters*. Open the seeded draft “The Ninth Cup”, or create a campaign.
+2. Submit it for review, then open `/operator` and approve or reject with a note.
+3. `/quests` — approved campaigns appear in player discovery with the full briefing, fixed reward and coupon terms.
+
+See [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md) for the remaining phases.
 
 MagicBlock docs: https://docs.magicblock.gg · Solana docs: https://solana.com/docs

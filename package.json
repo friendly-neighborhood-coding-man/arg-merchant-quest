@@ -1,0 +1,27 @@
+{
+  "name": "arg-merchant-quest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Real-world ARG advertising platform for local merchants (Solana Devnet demo)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:reset": "node --experimental-strip-types scripts/reset-db.ts"
+  },
+  "dependencies": {
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "^24.9.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "tailwindcss": "4.3.5",
+    "typescript": "^5.9.3"
+  }
+}

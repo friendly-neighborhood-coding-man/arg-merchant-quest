@@ -17,6 +17,7 @@ id.json
 *-keypair.json
 
 # Data / outputs
+.data/
 *.sqlite
 *.sqlite-journal
 *.db
