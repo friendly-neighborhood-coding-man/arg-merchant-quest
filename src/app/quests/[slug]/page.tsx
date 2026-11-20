@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CampaignPreview } from "@/components/campaign-preview";
 import { getCampaignBySlug } from "@/lib/store";
+import { clueCount } from "@/lib/format";
 import { StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function QuestDetailPage({ params }: PageProps) {
             <StatusBadge status={campaign.status} />
             <span className="chip border-line text-sage/60">{campaign.shopArea}</span>
             <span className="chip border-line text-sage/60">
-              {campaign.clues.length} clues
+              {clueCount(campaign.clues.length)}
             </span>
           </div>
           <h1 className="mt-3 font-display text-4xl leading-[1.05] tracking-tight text-white sm:text-5xl">
@@ -48,14 +49,10 @@ export default async function QuestDetailPage({ params }: PageProps) {
           </h1>
           <p className="mt-3 text-[15px] leading-relaxed text-sage/80">{campaign.teaser}</p>
           <p className="mt-3 text-[12.5px] text-sage/55">
-            {campaign.shopName} · {campaign.merchantName} · approved{" "}
-            {campaign.reviewedBy ?? "operator"}
+            {campaign.shopName}
+            {campaign.merchantName !== campaign.shopName ? ` · ${campaign.merchantName}` : ""} ·{" "}
+            {campaign.shopArea} · approved {campaign.reviewedBy ?? "operator"}
           </p>
-        </div>
-        <div className="shrink-0">
-          <Link href={`/merchant`} className="btn-ghost">
-            Merchant studio
-          </Link>
         </div>
       </header>
 

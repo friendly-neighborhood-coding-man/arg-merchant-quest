@@ -31,6 +31,10 @@ export interface Campaign {
   couponNotes: string;
   status: CampaignStatus;
   operatorNote: string | null;
+  /** The most recent rejection reason. Survives a resubmission so the operator
+   * can still see what the merchant was asked to correct. */
+  lastRejectionNote: string | null;
+  lastRejectionAt: string | null;
   submittedAt: string | null;
   reviewedAt: string | null;
   reviewedBy: string | null;

@@ -48,3 +48,7 @@ export function rewardCopy(amount: number): string {
 export function couponWindowCopy(days: number): string {
   return days === 1 ? "valid 1 day after issue" : `valid ${days} days after issue`;
 }
+
+export function clueCount(count: number): string {
+  return count === 1 ? "1 clue" : `${count} clues`;
+}

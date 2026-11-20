@@ -82,6 +82,19 @@ export default async function OperatorCampaignReview({ params }: PageProps) {
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          {isPending && campaign.lastRejectionNote ? (
+            <div className="panel-flat p-4">
+              <p className="mono-label text-rust/80">Resubmitted after feedback</p>
+              <p className="mt-2 text-[12.5px] leading-relaxed text-sage/80">
+                {campaign.lastRejectionNote}
+              </p>
+              <p className="mt-2 text-[11px] text-sage/45">
+                Your note from {formatDateTime(campaign.lastRejectionAt)} · resubmitted{" "}
+                {formatDateTime(campaign.submittedAt)}
+              </p>
+            </div>
+          ) : null}
+
           {isPending ? (
             <ReviewControls campaignId={campaign.id} campaignTitle={campaign.title} />
           ) : (

@@ -1,5 +1,5 @@
 import type { Campaign } from "@/lib/types";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { clueCount, formatDate, formatDateTime } from "@/lib/format";
 import { ClueTrail, RewardLine, StatusBadge, TermSheet } from "./ui";
 
 function Meta({ label, value }: { label: string; value: React.ReactNode }) {
@@ -41,6 +41,19 @@ export function CampaignPreview({
           </section>
         ) : null}
 
+        {showOperatorNote &&
+        campaign.lastRejectionNote &&
+        campaign.lastRejectionNote !== campaign.operatorNote ? (
+          <section className="rounded-2xl border border-rust/30 bg-rust/5 p-4">
+            <p className="mono-label text-rust/80">Previous operator note</p>
+            <p className="mt-2 text-sm leading-relaxed text-rust/90">{campaign.lastRejectionNote}</p>
+            <p className="mt-2 text-[11px] text-sage/55">
+              Sent back {formatDateTime(campaign.lastRejectionAt)} · resubmitted{" "}
+              {formatDateTime(campaign.submittedAt)}
+            </p>
+          </section>
+        ) : null}
+
         <section className="grid gap-4 sm:grid-cols-2">
           <div className="panel-flat p-4">
             <p className="mono-label">The find</p>
@@ -59,7 +72,7 @@ export function CampaignPreview({
         <section>
           <div className="flex items-center justify-between gap-3">
             <p className="mono-label">Online trail</p>
-            <span className="chip border-line text-sage/60">{onlineClues.length} clues</span>
+            <span className="chip border-line text-sage/60">{clueCount(onlineClues.length)}</span>
           </div>
           <div className="mt-3">
             <ClueTrail clues={campaign.clues} kind="online" />
@@ -73,7 +86,7 @@ export function CampaignPreview({
         <section>
           <div className="flex items-center justify-between gap-3">
             <p className="mono-label">In-store trail</p>
-            <span className="chip border-line text-sage/60">{instoreClues.length} clues</span>
+            <span className="chip border-line text-sage/60">{clueCount(instoreClues.length)}</span>
           </div>
           <div className="mt-3">
             <ClueTrail clues={campaign.clues} kind="instore" showLinks={false} />
@@ -101,8 +114,14 @@ export function CampaignPreview({
         <div className="panel-flat p-4">
           <p className="mono-label">Merchant &amp; store</p>
           <dl className="mt-3 space-y-3">
-            <Meta label="Merchant" value={campaign.merchantName} />
-            <Meta label="Shop" value={campaign.shopName} />
+            {campaign.merchantName === campaign.shopName ? (
+              <Meta label="Merchant & shop" value={campaign.shopName} />
+            ) : (
+              <>
+                <Meta label="Merchant" value={campaign.merchantName} />
+                <Meta label="Shop" value={campaign.shopName} />
+              </>
+            )}
             <Meta label="Area" value={campaign.shopArea} />
             <Meta label="Address" value={campaign.shopAddress} />
             <Meta label="Submitted" value={formatDateTime(campaign.submittedAt)} />

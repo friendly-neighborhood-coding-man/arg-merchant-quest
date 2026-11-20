@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { QuestCard } from "@/components/quest-card";
 import { EmptyState, PageHeader } from "@/components/ui";
@@ -20,11 +19,6 @@ export default function QuestsPage() {
         eyebrow="Player discovery"
         title="Open trails"
         description="Merchant-sponsored clue hunts approved for the Devnet demo. Read the story before you go anywhere: the reward is fixed, the coupon conditions are visible up front, and nothing here is a race."
-        actions={
-          <Link href="/operator" className="btn-ghost">
-            Review desk
-          </Link>
-        }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -48,7 +42,6 @@ export default function QuestsPage() {
         <EmptyState
           title="The boards are empty"
           description="No campaign has been approved yet. Merchant drafts appear here only after an operator publishes them."
-          action={{ href: "/operator", label: "Open operator console" }}
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 type PageProps = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
+  searchParams: Promise<{ created?: string; updated?: string; locked?: string }>;
 };
 
 function Pipeline({ campaign }: { campaign: Campaign }) {
@@ -56,13 +56,17 @@ function Pipeline({ campaign }: { campaign: Campaign }) {
 
 export default async function MerchantCampaignDetail({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, updated, locked } = await searchParams;
   const campaign = getCampaignById(id);
   const merchant = getDemoMerchant();
 
   if (!campaign || campaign.merchantId !== merchant.id) notFound();
 
-  const canSubmit = campaign.status === "draft" || campaign.status === "rejected";
+  const canEdit = campaign.status === "draft" || campaign.status === "rejected";
+  const sentBack = campaign.status === "rejected";
+  const waitingAfterFeedback =
+    Boolean(campaign.lastRejectionNote) &&
+    (campaign.status === "pending" || campaign.status === "published");
 
   return (
     <div className="wrap space-y-7 pt-8">
@@ -73,12 +77,32 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
         <span className="font-mono text-[10px] tracking-wide text-sage/35">{campaign.slug}</span>
       </div>
 
-      {created ? (
+      {created === "1" && campaign.status === "draft" ? (
         <div className="rounded-2xl border border-mint/30 bg-mint/10 px-4 py-3">
           <p className="text-[13px] font-semibold text-mint">Draft saved</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mint/75">
             This campaign is private to your studio. Submit it for operator review when the trail is
             ready — only then can players see it.
+          </p>
+        </div>
+      ) : null}
+
+      {updated === "1" ? (
+        <div className="rounded-2xl border border-mint/30 bg-mint/10 px-4 py-3">
+          <p className="text-[13px] font-semibold text-mint">Changes saved</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-mint/75">
+            {sentBack
+              ? "The campaign and its clues are updated. Resubmit it when you are ready for another review."
+              : "This draft is updated. Submit it for operator review when the trail is ready."}
+          </p>
+        </div>
+      ) : null}
+
+      {locked === "1" ? (
+        <div className="rounded-2xl border border-amber/35 bg-amber/10 px-4 py-3">
+          <p className="text-[13px] font-semibold text-amber-soft">This campaign is locked</p>
+          <p className="mt-1 text-[12px] leading-relaxed text-amber/80">
+            Campaigns cannot be edited while an operator is reviewing them or after they are live.
           </p>
         </div>
       ) : null}
@@ -99,16 +123,49 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {canEdit ? (
+            <Link href={`/merchant/campaigns/${campaign.id}/edit`} className="btn-ghost">
+              {sentBack ? "Edit & resubmit" : "Edit draft"}
+            </Link>
+          ) : null}
           {campaign.status === "published" ? (
             <Link href={`/quests/${campaign.slug}`} className="btn-ghost">
               View in discovery
             </Link>
           ) : null}
-          {canSubmit ? <SubmitForReview campaignId={campaign.id} /> : null}
+          {canEdit ? <SubmitForReview campaignId={campaign.id} label={sentBack ? "Resubmit" : undefined} /> : null}
         </div>
       </header>
 
-      {campaign.status === "pending" ? (
+      {sentBack ? (
+        <div className="rounded-2xl border border-rust/35 bg-rust/10 px-4 py-3.5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <p className="mono-label text-rust/80">Operator feedback</p>
+            <p className="text-[11px] text-rust/65">
+              {campaign.reviewedBy ?? "operator"} · {formatDateTime(campaign.lastRejectionAt)}
+            </p>
+          </div>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-rust/95">
+            {campaign.operatorNote ?? campaign.lastRejectionNote ?? "No note was left."}
+          </p>
+          <p className="mt-2 text-[12px] leading-relaxed text-rust/70">
+            Edit the campaign to address this, then resubmit. The operator sees this note next to
+            your revised campaign.
+          </p>
+        </div>
+      ) : null}
+
+      {waitingAfterFeedback ? (
+        <div className="panel-flat px-4 py-3">
+          <p className="text-[13px] leading-relaxed text-sage/80">
+            {campaign.status === "pending"
+              ? `Resubmitted ${timeAgo(campaign.submittedAt)} after an operator sent it back on ${formatDateTime(campaign.lastRejectionAt)}. The earlier note is kept below so the operator can compare.`
+              : `Approved after an earlier round of changes (sent back on ${formatDateTime(campaign.lastRejectionAt)}). The original note is kept below.`}
+          </p>
+        </div>
+      ) : null}
+
+      {campaign.status === "pending" && !campaign.lastRejectionNote ? (
         <div className="panel-flat px-4 py-3">
           <p className="text-[13px] text-sage/80">
             Waiting for an operator decision since {formatDateTime(campaign.submittedAt)}. You will
@@ -119,7 +176,7 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
 
       <Pipeline campaign={campaign} />
 
-      <CampaignPreview campaign={campaign} showOperatorNote />
+      <CampaignPreview campaign={campaign} showOperatorNote={!sentBack} />
     </div>
   );
 }

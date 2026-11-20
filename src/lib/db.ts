@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   coupon_notes TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL CHECK (status IN ('draft', 'pending', 'published', 'rejected')),
   operator_note TEXT,
+  last_rejection_note TEXT,
+  last_rejection_at TEXT,
   submitted_at TEXT,
   reviewed_at TEXT,
   reviewed_by TEXT,
@@ -61,8 +63,33 @@ type GlobalWithDb = typeof globalThis & { __argMerchantDb?: DatabaseSync };
 
 const globalForDb = globalThis as GlobalWithDb;
 
+/**
+ * Columns added after the first release. SQLite has no "ADD COLUMN IF NOT
+ * EXISTS", so check PRAGMA first — an existing demo database keeps its rows.
+ */
+const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
+  {
+    table: "campaigns",
+    column: "last_rejection_note",
+    ddl: "ALTER TABLE campaigns ADD COLUMN last_rejection_note TEXT",
+  },
+  {
+    table: "campaigns",
+    column: "last_rejection_at",
+    ddl: "ALTER TABLE campaigns ADD COLUMN last_rejection_at TEXT",
+  },
+];
+
 function migrate(db: DatabaseSync) {
   db.exec(SCHEMA_SQL);
+  for (const migration of COLUMN_MIGRATIONS) {
+    const columns = db.prepare(`PRAGMA table_info(${migration.table})`).all() as unknown as Array<{
+      name: string;
+    }>;
+    if (!columns.some((column) => column.name === migration.column)) {
+      db.exec(migration.ddl);
+    }
+  }
 }
 
 export function getDb(): DatabaseSync {

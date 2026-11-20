@@ -47,7 +47,8 @@ export function QuestCard({ campaign }: { campaign: Campaign }) {
 
       <div className="mt-auto pt-4">
         <p className="text-[11.5px] text-sage/55">
-          {campaign.shopName} · {campaign.merchantName}
+          {campaign.shopName}
+          {campaign.merchantName !== campaign.shopName ? ` · ${campaign.merchantName}` : ""}
         </p>
       </div>
     </article>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import type { Campaign } from "@/lib/types";
 import type { FieldErrors } from "@/lib/validation";
 
 type ClueKind = "onlineClues" | "instoreClues";
@@ -50,6 +51,34 @@ const INITIAL: Draft = {
   onlineClues: [{ ...EMPTY_CLUE }],
   instoreClues: [{ ...EMPTY_CLUE }],
 };
+
+function draftFromCampaign(campaign: Campaign): Draft {
+  const cluesOf = (kind: "online" | "instore"): ClueDraft[] => {
+    const items = campaign.clues
+      .filter((clue) => clue.kind === kind)
+      .sort((a, b) => a.position - b.position)
+      .map((clue) => ({ title: clue.title, body: clue.body, url: clue.url ?? "" }));
+    return items.length > 0 ? items : [{ ...EMPTY_CLUE }];
+  };
+
+  return {
+    title: campaign.title,
+    shopName: campaign.shopName,
+    shopArea: campaign.shopArea,
+    shopAddress: campaign.shopAddress,
+    teaser: campaign.teaser,
+    story: campaign.story,
+    targetObject: campaign.targetObject,
+    targetObjectHint: campaign.targetObjectHint,
+    rewardAmount: String(campaign.rewardAmount),
+    couponItem: campaign.couponItem,
+    couponMinSpend: String(campaign.couponMinSpend),
+    couponValidDays: String(campaign.couponValidDays),
+    couponNotes: campaign.couponNotes,
+    onlineClues: cluesOf("online"),
+    instoreClues: cluesOf("instore"),
+  };
+}
 
 function inputClass(hasError: boolean) {
   return [
@@ -133,9 +162,19 @@ function CheckRow({ done, label, detail }: { done: boolean; label: string; detai
   );
 }
 
-export function CampaignForm({ merchantName }: { merchantName: string }) {
+export function CampaignForm({
+  merchantName,
+  campaign,
+}: {
+  merchantName: string;
+  /** When present the form edits this draft / rejected campaign instead of creating one. */
+  campaign?: Campaign;
+}) {
   const router = useRouter();
-  const [draft, setDraft] = useState<Draft>(INITIAL);
+  const isEditing = Boolean(campaign);
+  const [draft, setDraft] = useState<Draft>(() =>
+    campaign ? draftFromCampaign(campaign) : INITIAL,
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -226,11 +265,14 @@ export function CampaignForm({ merchantName }: { merchantName: string }) {
     };
 
     try {
-      const response = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        campaign ? `/api/campaigns/${campaign.id}` : "/api/campaigns",
+        {
+          method: campaign ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
       const data = (await response.json()) as {
         campaign?: { id: string };
         error?: string;
@@ -245,7 +287,9 @@ export function CampaignForm({ merchantName }: { merchantName: string }) {
         return;
       }
 
-      router.push(`/merchant/campaigns/${data.campaign?.id}?created=1`);
+      const id = data.campaign?.id ?? campaign?.id;
+      router.push(`/merchant/campaigns/${id}?${campaign ? "updated" : "created"}=1`);
+      router.refresh();
     } catch {
       setFormError("Network error — the campaign was not saved. Try again.");
       setSaving(false);
@@ -603,15 +647,16 @@ export function CampaignForm({ merchantName }: { merchantName: string }) {
 
         <div className="flex flex-col gap-3 border-t border-line/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-sm text-[12px] leading-relaxed text-sage/55">
-            Saving creates a private draft for {merchantName}. Nothing is visible to players until an
-            operator approves it.
+            Every required field must be complete before this campaign can be saved, so there is no
+            half-finished draft. {isEditing ? "Saving updates this private campaign" : `Saving creates a private draft for ${merchantName}`}
+            {" "}— nothing is visible to players until an operator approves it.
           </p>
           <div className="flex items-center gap-2">
             <Link href="/merchant" className="btn-ghost">
               Cancel
             </Link>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving ? "Saving…" : "Save draft"}
+              {saving ? "Saving…" : isEditing ? "Save changes" : "Save draft"}
             </button>
           </div>
         </div>
@@ -633,7 +678,7 @@ export function CampaignForm({ merchantName }: { merchantName: string }) {
           <div className="mt-4 border-t border-line/60 pt-3">
             <p className="text-[11px] leading-relaxed text-sage/50">
               Operator review checks playability, a customer-safe location, and honest reward copy.
-              You can save an incomplete draft any time.
+              All required fields must be filled in before this campaign can be saved.
             </p>
           </div>
         </div>

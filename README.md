@@ -1,6 +1,6 @@
 # ARG Merchant Quest
 
-> **Status: P0.1 delivered — merchant campaign pipeline.** Campaign creation, operator approval and player discovery run against a real SQLite database. Quest play (P0.2), the Devnet/MagicBlock payout (P0.3) and coupon issuance/redemption (P0.4) are not implemented yet; reward and coupon copy in this build is terms-only.
+> **Status: P0.1 delivered — merchant campaign pipeline.** Campaign creation, editing and resubmission, operator approval and player discovery run against a real SQLite database. Drafts and campaigns sent back by the operator are editable; the operator's rejection note is kept through resubmission. Quest play (P0.2), the Devnet/MagicBlock payout (P0.3) and coupon issuance/redemption (P0.4) are not implemented yet; reward and coupon copy in this build is terms-only.
 
 A real-world ARG advertising experience powered by Solana and MagicBlock. Merchants publish clue-driven campaigns; visitors discover approved online/in-store clues, photograph a target object, earn a fixed visit reward, and optionally unlock a merchant-specific secret-menu coupon.
 
@@ -53,13 +53,14 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-The database is created on first request at `.data/arg.db` and seeded with three fictional campaigns (one draft, one live, one waiting for review). Delete `.data/arg.db` to reseed. No secrets are required for P0.1; `.env.example` only holds placeholders for the later chain work.
+The database is created on first request at `.data/arg.db` and seeded with three fictional campaigns (one draft, one live, one waiting for review). Run `npm run db:reset` to delete it; the schema and seed data are recreated on the next request. No secrets are required for P0.1; `.env.example` only holds placeholders for the later chain work.
 
 ### Demo path
 
 1. `/merchant` — demo studio for *Umbra Coffee Roasters*. Open the seeded draft “The Ninth Cup”, or create a campaign.
 2. Submit it for review, then open `/operator` and approve or reject with a note.
-3. `/quests` — approved campaigns appear in player discovery with the full briefing, fixed reward and coupon terms.
+3. If it was rejected, open the campaign and choose *Edit & resubmit*: the form is prefilled, the operator's note stays visible, and only drafts and sent-back campaigns can be edited.
+4. `/quests` — approved campaigns appear in player discovery with the full briefing, fixed reward and coupon terms.
 
 See [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md) for the remaining phases.
 

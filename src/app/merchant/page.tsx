@@ -54,7 +54,15 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
           </p>
         ) : null}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center gap-2">
+        {campaign.status === "draft" || campaign.status === "rejected" ? (
+          <Link
+            href={`/merchant/campaigns/${campaign.id}/edit`}
+            className="btn-ghost py-1.5 text-[12px]"
+          >
+            {campaign.status === "rejected" ? "Edit" : "Edit draft"}
+          </Link>
+        ) : null}
         {campaign.status === "draft" || campaign.status === "rejected" ? (
           <SubmitForReview
             campaignId={campaign.id}
@@ -135,12 +143,13 @@ export default function MerchantPage() {
         <p className="mono-label">How the pipeline moves</p>
         <ol className="mt-3 grid gap-3 text-[12.5px] leading-relaxed text-sage/70 sm:grid-cols-3">
           <li>
-            <span className="text-white/85">1 · Draft.</span> Saving never publishes. You can keep a
-            campaign unfinished.
+            <span className="text-white/85">1 · Draft.</span> Saving never publishes. Every required
+            field must be complete, but the campaign stays private until you submit it.
           </li>
           <li>
-            <span className="text-white/85">2 · Review.</span> Submitting freezes the campaign for an
-            operator check of playability, a safe in-store spot and honest terms.
+            <span className="text-white/85">2 · Review.</span> Submitting locks the campaign for an
+            operator check of playability, a safe in-store spot and honest terms. If it is sent
+            back, edit it and resubmit.
           </li>
           <li>
             <span className="text-white/85">3 · Live.</span> Approval publishes it to player

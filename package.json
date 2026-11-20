@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "db:reset": "node --experimental-strip-types scripts/reset-db.ts"
+    "db:reset": "node scripts/reset-db.mjs"
   },
   "dependencies": {
     "next": "16.4.6",

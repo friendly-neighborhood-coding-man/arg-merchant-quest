@@ -5,7 +5,8 @@
 ## P0 — full end-to-end
 
 - [x] Merchant creates one campaign: shop details, permitted spot, SNS/site clue URLs, target object, reward, coupon terms. *(P0.1 — object is described in text and photographing it arrives with P0.2 evidence capture; no image upload yet.)*
-- [x] Operator previews and approves the campaign. *(P0.1 — approve publishes to discovery; reject requires a note.)*
+- [x] Merchant can correct a campaign while it is a draft or after it is sent back, then resubmit it. *(P0.1 — editing is locked while in review and after publishing.)*
+- [x] Operator previews and approves the campaign. *(P0.1 — approve publishes to discovery; reject requires a note, and that note is kept through resubmission so the operator can compare revisions.)*
 - [ ] Visitor selects the shop and solves an easy basic in-store finding mission. *(P0.1 ships published campaign discovery and the full briefing only; the playable run is P0.2.)*
 - [ ] Optional hints appear at **3 and 5 minutes**; hint usage does not change the fixed reward.
 - [ ] Visitor uses **in-app camera**, explicitly permits location, and submits photo/time/location evidence. A limited verifier reports what was checked.
