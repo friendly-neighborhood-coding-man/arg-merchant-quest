@@ -1,0 +1,28 @@
+node_modules/
+.next/
+out/
+dist/
+coverage/
+.pnpm-store/
+*.tsbuildinfo
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+id.json
+*-keypair.json
+
+# Data / outputs
+*.sqlite
+*.sqlite-journal
+*.db
+.tmp/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
