@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { CampaignForm } from "@/components/campaign-form";
+import { StoryLab } from "@/components/story-lab";
 import { getDemoMerchant } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,8 @@ export default function NewCampaignPage() {
           minutes. Keep it solvable, keep the reward fixed, and show the coupon conditions honestly.
         </p>
       </header>
+
+      <StoryLab merchantName={merchant.name} />
 
       <CampaignForm merchantName={merchant.name} />
     </div>

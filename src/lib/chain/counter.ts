@@ -204,6 +204,42 @@ async function send(
  * Record one operator-verified completion on the ER and commit it to Solana.
  * The first call for a campaign also creates and delegates the counter PDA.
  */
+export function milestoneSeedCampaignId(
+  campaignId: string,
+  milestone: "clue" | "ending",
+): string {
+  return `${campaignId}#${milestone}`;
+}
+
+/**
+ * P1: a second, campaign-scoped gameplay counter for an optional milestone.
+ *
+ * It reuses the deployed completion-counter program and its PDA scheme with a
+ * different seed, so no program upgrade is needed and the accepted completion
+ * counter is untouched. The clue-handoff milestone records the moment a player
+ * actually receives the product-contained clue; the AI companion reads this
+ * real ER state rather than decorative copy.
+ */
+export async function recordGameplayMilestone(
+  campaignId: string,
+  milestone: "clue" | "ending",
+): Promise<ChainEvidence> {
+  return recordVerifiedCompletion(milestoneSeedCampaignId(campaignId, milestone));
+}
+
+export async function readGameplayMilestone(
+  campaignId: string,
+  milestone: "clue" | "ending",
+): Promise<{
+  counterAccount: string | null;
+  erValue: number | null;
+  baseValue: number | null;
+  delegated: boolean;
+  erEndpoint: string | null;
+}> {
+  return readCounterState(milestoneSeedCampaignId(campaignId, milestone));
+}
+
 export async function recordVerifiedCompletion(campaignId: string): Promise<ChainEvidence> {
   const programId = counterProgramId();
   if (!programId) {

@@ -109,6 +109,24 @@ export function CampaignPreview({
                 </p>
               </div>
             ) : null}
+            {campaign.optionalMode === "product_clue" ? (
+              <div className="mt-3 space-y-2 border-t border-berry/20 pt-3">
+                <p className="mono-label text-[9px] text-berry/70">Product clue ending</p>
+                <p className="text-[12px] leading-relaxed text-sage/75">
+                  <span className="text-white/80">{campaign.productName}</span>
+                  {campaign.productPriceLabel ? ` · ${campaign.productPriceLabel}` : ""}
+                  {campaign.productProp ? ` · ${campaign.productProp}` : ""}
+                </p>
+                <p className="text-[12px] leading-relaxed text-sage/75">
+                  <span className="text-berry/80">Clue (private until handoff):</span>{" "}
+                  {campaign.productClue || "Not configured"}
+                </p>
+                <p className="text-[12px] leading-relaxed text-sage/75">
+                  Final answer: <span className="font-mono text-amber">{campaign.finalAnswer || "—"}</span>
+                  {" · "}Ending: {campaign.endingTitle || "—"}
+                </p>
+              </div>
+            ) : null}
           </section>
         ) : null}
 

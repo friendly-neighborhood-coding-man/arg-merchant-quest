@@ -99,8 +99,47 @@ MERCHANT /merchant  <- merchantActivity(merchant_id)  (SQL aggregates + recent e
 - Coupon issuance never depends on `payout_status`; the reward and the coupon are separate features.
 - Staff identity is a typed demo name. There is no authentication, POS integration or payment verification in this prototype.
 
+## P1 product clue, companion and milestone (as built)
+
+```text
+FREE QUEST VERIFIED --> extended deduction (ext_answer, server-checked)
+                              |
+                     POST /product {action:"request"}
+                              v
+                    product_claims(reference, product snapshot, status=requested)
+                              |
+STAFF /staff --> /api/product-claims/lookup?reference=...
+              --> /api/product-claims/handoff (single conditional UPDATE)
+                              |
+                 recordGameplayMilestone(campaign_id + "#clue")
+                 create -> delegate -> ER increment -> commit
+                              v
+                    claim.status=handed_off, chain evidence stored
+                              |
+PLAYER quest view --> optional.clue released only now
+                              |
+                 POST /product {action:"final"} -- server comparison
+                              |
+                 final_solved_at, final_answer_attempts, achievement
+
+COMPANION POST /api/quests/[slug]/companion
+   filtered QuestView (no answers, no locked clue)
+        |
+   ARG_AI_* configured ? OpenAI-compatible call : scripted Mara
+        |
+   companion_messages (per session, capped load)
+```
+
+- The campaign counter and the clue milestone are separate PDAs of the same unchanged program. The clue id is `${campaignId}#clue`, so P0.3 counters keep their value.
+- Handoff is the only transition that releases the clue; the database update is the source of truth, and the ER call is attempted after it. A chain failure is recorded on the claim and does not fake a signature.
+- The player view is assembled server-side. Private answers and locked clue text are excluded before either the page or the LLM sees the object.
+- Product mode never issues a coupon. `optional_mode = 'coupon'` retains the P0.4 path exactly.
+- The hidden ending is narrative only: no change to `reward_amount`, payout status, or the fixed transfer.
+
 ## Important distinctions
 
 Knowing the clue answer is not proof that the user visited the referenced social profile. GPS+photo is limited evidence, not proof of continuous dwell. A confirmed Solana transaction does not prove app-level exactly-once reward. Demo coupons must be clearly nonredeemable in real businesses.
+
+P1 adds: a real ER milestone proves only that *this app* performed a staff-confirmed handoff for a reference; it does not prove a real purchase, delivery or physical clue was handed over. The product clue is a simulation, and the companion is not an authority on the puzzle.
 
 These caveats are for transparent UI/evidence, **not** pre-E2E research or security work.

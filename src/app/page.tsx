@@ -284,7 +284,7 @@ export default function HomePage() {
         <div className="panel p-5">
           <div className="flex items-center justify-between">
             <p className="mono-label">What works right now</p>
-            <span className="chip border-mint/30 text-mint">P0.4</span>
+            <span className="chip border-mint/30 text-mint">P1</span>
           </div>
           <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-sage/80">
             {[

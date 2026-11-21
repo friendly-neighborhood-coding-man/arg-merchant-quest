@@ -76,6 +76,33 @@ export function Stat({
 }
 
 export function TermSheet({ campaign }: { campaign: Campaign }) {
+  if (campaign.optionalMode === "product_clue") {
+    return (
+      <div className="panel-flat border-amber/25 p-4">
+        <div className="flex items-center justify-between gap-3">
+          <p className="mono-label">Optional product clue</p>
+          <span className="chip border-amber/30 text-amber/80">Simulation</span>
+        </div>
+        <p className="mt-2 font-display text-lg leading-snug text-white/90">
+          {campaign.productName}
+        </p>
+        {campaign.productPriceLabel ? (
+          <p className="mt-1 font-mono text-[11px] text-amber/70">
+            Demo price: {campaign.productPriceLabel}
+          </p>
+        ) : null}
+        <p className="mt-3 text-[12px] leading-relaxed text-sage/70">
+          {campaign.productProp ? `Prop: ${campaign.productProp}. ` : ""}
+          The final clue is inside the product and is released once by staff after a demo handoff.
+          No payment is processed, and the fixed free reward never depends on it.
+        </p>
+        <p className="mt-3 text-[11px] leading-relaxed text-amber/70">
+          No coupon is issued for this campaign. The product clue is an optional story ending.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="panel-flat p-4">
       <div className="flex items-center justify-between gap-3">

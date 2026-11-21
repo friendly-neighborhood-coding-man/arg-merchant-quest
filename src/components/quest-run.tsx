@@ -8,6 +8,8 @@ import type { QuestClueView, QuestView } from "@/lib/quest-store";
 import { formatDateTime } from "@/lib/format";
 import { RewardClaim, type RewardPanelData } from "./reward-claim";
 import { CouponTicket } from "./coupon-ticket";
+import { ProductMystery } from "./product-mystery";
+import { CompanionPanel } from "./companion-panel";
 
 const STEPS = ["Online trail", "In the shop", "The question", "Evidence", "Verified"];
 
@@ -527,7 +529,7 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
   }
 
   return (
-    <section className="panel border-berry/30 p-5">
+    <section id="optional-mystery" className="scroll-mt-24 panel border-berry/30 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="mono-label text-berry/80">Optional · the second question</p>
         <span className="chip border-berry/40 bg-berry/10 text-berry">
@@ -536,9 +538,11 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
       </div>
       <h2 className="mt-2 font-display text-2xl text-white/95">The letter was not the end of it.</h2>
       <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-sage/70">
-        The basic quest is finished. This trail is extra: one post, one page on the roastery&apos;s
-        site, one thing you can only see in the shop. It unlocks a second achievement and makes you
-        eligible for the demo coupon. It never changes the fixed reward.
+        The basic quest is finished. This trail is extra: a social record, a public page and one
+        thing you can only see in the shop. It never changes the fixed reward or requires a purchase.
+        {view.optional.mode === "product_clue"
+          ? ` Solving it unlocks the optional product trail and a hidden ending: the last clue is printed inside the ${view.optional.productName}.`
+          : " It unlocks a second achievement and makes you eligible for a demo coupon."}
       </p>
 
       {view.extended.clues.length > 0 ? (
@@ -552,26 +556,6 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
                 <div>
                   <p className="text-[14px] font-semibold text-white/90">{clue.title}</p>
                   <p className="mt-1 text-[13px] leading-relaxed text-sage/80">{clue.body}</p>
-                  {slug === "the-ninth-cup" && clue.title === "The post from 2019" ? (
-                    <a
-                      className="link mt-2 inline-block text-[12.5px]"
-                      href="/demo/umbra-roasters/letter"
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      Open the post ↗
-                    </a>
-                  ) : null}
-                  {slug === "the-ninth-cup" && clue.title === "The roastery's about page" ? (
-                    <a
-                      className="link mt-2 inline-block text-[12.5px]"
-                      href="/demo/umbra-roasters/about"
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      Open the about page ↗
-                    </a>
-                  ) : null}
                 </div>
               </div>
             </li>
@@ -624,10 +608,11 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
 
       {view.extended.solved ? (
         <div className="mt-4 rounded-xl border border-mint/40 bg-mint/10 px-4 py-3">
-          <p className="text-[13px] font-semibold text-mint">The second achievement is yours</p>
+          <p className="text-[13px] font-semibold text-mint">The pre-order deduction is solved</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mint/85">
-            You solved {view.campaign.title}&apos;s extended mystery. Your demo coupon is issued
-            below — show its code to staff at {view.campaign.shopName}.
+            {view.optional.mode === "product_clue"
+              ? `You worked out what the records were pointing at. The last clue is not online — it is inside the ${view.optional.productName}. Request it below and show the reference at ${view.campaign.shopName}.`
+              : `You solved ${view.campaign.title}'s extended mystery. Your demo coupon is issued below — show its code to staff at ${view.campaign.shopName}.`}
           </p>
         </div>
       ) : null}
@@ -987,16 +972,32 @@ export function QuestRun({
               </dd>
             </div>
             <div>
-              <dt className="mono-label text-[9px]">Demo coupon</dt>
+              <dt className="mono-label text-[9px]">
+                {view.optional.mode === "product_clue" ? "Product clue" : "Demo coupon"}
+              </dt>
               <dd className="mt-1 text-white/85">
-                {view.coupon
-                  ? "Issued below"
-                  : view.completion.couponEligible
-                    ? "Unlocked"
-                    : "Locked — solve the second question"}
+                {view.optional.mode === "product_clue"
+                  ? view.optional.clue
+                    ? "Released — read it below"
+                    : view.optional.claim
+                      ? "Order reference issued"
+                      : view.extended.solved
+                        ? "Request the product below"
+                        : "Locked — solve the pre-order deduction"
+                  : view.coupon
+                    ? view.coupon.displayStatus === "redeemed"
+                      ? "Issued · redeemed"
+                      : view.coupon.displayStatus === "expired"
+                        ? "Issued · expired"
+                        : "Issued · ready to show"
+                    : view.completion.couponEligible
+                      ? "Unlocked"
+                      : "Locked — solve the second question"}
               </dd>
               <dd className="text-[11px] text-sage/45">
-                One fictional secret-menu entitlement per completion.
+                {view.optional.mode === "product_clue"
+                  ? "Optional, simulated product order; no extra reward."
+                  : "One fictional secret-menu entitlement per completion."}
               </dd>
             </div>
             <div>
@@ -1033,20 +1034,6 @@ export function QuestRun({
         </section>
       ) : null}
 
-      <ExtendedMystery slug={slug} view={view} />
-
-      {view.coupon ? (
-        <CouponTicket coupon={view.coupon} />
-      ) : view.completion?.extendedSolved ? (
-        <section className="panel border-amber/30 p-5">
-          <p className="mono-label text-amber/80">Demo coupon</p>
-          <p className="mt-2 text-[13px] leading-relaxed text-sage/70">
-            You solved the second question, but this deployment could not issue the demo coupon.
-            Your verified completion and achievement are unaffected.
-          </p>
-        </section>
-      ) : null}
-
       {view.completion ? (
         <RewardClaim
           slug={slug}
@@ -1073,6 +1060,35 @@ export function QuestRun({
           simulated={view.completion.simulated}
         />
       ) : null}
+
+      {view.completion && view.optional.available ? (
+        <div className="sticky top-2 z-20 flex items-center justify-between gap-3 rounded-xl border border-amber/35 bg-ink/95 px-3.5 py-2 shadow-lg backdrop-blur">
+          <p className="text-[11.5px] leading-snug text-sage/70">
+            Optional mystery · {view.optional.mode === "product_clue" ? "the clue inside the product" : "a demo coupon"}
+          </p>
+          <a href="#optional-mystery" className="btn-ghost shrink-0 py-1.5 text-[11.5px]">
+            Jump ↓
+          </a>
+        </div>
+      ) : null}
+
+      <ExtendedMystery slug={slug} view={view} />
+
+      <ProductMystery slug={slug} view={view} />
+
+      {view.coupon ? (
+        <CouponTicket coupon={view.coupon} />
+      ) : view.completion?.extendedSolved && view.optional.mode === "coupon" ? (
+        <section className="panel border-amber/30 p-5">
+          <p className="mono-label text-amber/80">Demo coupon</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-sage/70">
+            You solved the second question, but this deployment could not issue the demo coupon.
+            Your verified completion and achievement are unaffected.
+          </p>
+        </section>
+      ) : null}
+
+      <CompanionPanel slug={slug} title={view.campaign.title} />
 
       <p className="pb-4 text-center text-[11px] leading-relaxed text-sage/40">
         Fictional demo trail. Camera and location are supporting evidence reviewed by a person, never

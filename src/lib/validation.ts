@@ -4,6 +4,8 @@ export interface CampaignClueInput {
   url?: string;
 }
 
+import type { OptionalMode } from "./types";
+
 export interface CampaignInput {
   title: string;
   shopName: string;
@@ -30,6 +32,18 @@ export interface CampaignInput {
   extAnswer: string;
   extHint: string;
   extQuestion: string;
+  optionalMode: OptionalMode;
+  productName: string;
+  productPriceLabel: string;
+  productProp: string;
+  productClue: string;
+  finalQuestion: string;
+  finalAnswer: string;
+  finalHint: string;
+  endingTitle: string;
+  endingBody: string;
+  achievementTitle: string;
+  achievementBody: string;
   onlineClues: CampaignClueInput[];
   instoreClues: CampaignClueInput[];
 }
@@ -57,6 +71,16 @@ const LIMITS = {
   extClue: [8, 400],
   extAnswer: [1, 60],
   extQuestion: [8, 200],
+  productName: [3, 90],
+  productPriceLabel: [0, 40],
+  productProp: [3, 120],
+  productClue: [20, 600],
+  finalQuestion: [8, 220],
+  finalAnswer: [1, 60],
+  endingTitle: [3, 90],
+  endingBody: [40, 900],
+  achievementTitle: [3, 90],
+  achievementBody: [8, 320],
   clueTitle: [3, 90],
   clueBody: [8, 400],
   maxCluesPerKind: 5,
@@ -185,6 +209,18 @@ export function validateCampaignInput(raw: unknown): ValidationResult {
     extAnswer: text(input.extAnswer),
     extHint: text(input.extHint),
     extQuestion: text(input.extQuestion),
+    optionalMode: input.optionalMode === "product_clue" ? "product_clue" : "coupon",
+    productName: text(input.productName),
+    productPriceLabel: text(input.productPriceLabel),
+    productProp: text(input.productProp),
+    productClue: text(input.productClue),
+    finalQuestion: text(input.finalQuestion),
+    finalAnswer: text(input.finalAnswer),
+    finalHint: text(input.finalHint),
+    endingTitle: text(input.endingTitle),
+    endingBody: text(input.endingBody),
+    achievementTitle: text(input.achievementTitle),
+    achievementBody: text(input.achievementBody),
     onlineClues: [],
     instoreClues: [],
   };
@@ -270,6 +306,39 @@ export function validateCampaignInput(raw: unknown): ValidationResult {
   if (extQuestionIssue) errors.extQuestion = extQuestionIssue;
   if (value.extAnswer && !value.extQuestion) {
     errors.extQuestion = "Add the extended question players answer before adding its answer.";
+  }
+
+  // P1 product-clue mystery. All fields stay optional while the merchant is
+  // still writing a legacy coupon draft; choosing the product mode makes the
+  // product clue, final question and final answer part of a submittable trail.
+  if (value.optionalMode === "product_clue") {
+    for (const [field, fieldValue, limits, label] of [
+      ["productName", value.productName, LIMITS.productName, "Signature product"],
+      ["productProp", value.productProp, LIMITS.productProp, "Physical prop"],
+      ["productClue", value.productClue, LIMITS.productClue, "Product clue"],
+      ["finalQuestion", value.finalQuestion, LIMITS.finalQuestion, "Final question"],
+      ["endingTitle", value.endingTitle, LIMITS.endingTitle, "Ending title"],
+      ["endingBody", value.endingBody, LIMITS.endingBody, "Ending narrative"],
+      ["achievementTitle", value.achievementTitle, LIMITS.achievementTitle, "Achievement title"],
+    ] as const) {
+      const issue = lengthError(fieldValue, limits, label);
+      if (issue) errors[field] = issue;
+    }
+    if (!value.finalAnswer) errors.finalAnswer = "Add the hidden ending's answer.";
+    else if (value.finalAnswer.length > LIMITS.finalAnswer[1]) {
+      errors.finalAnswer = `Answer must be under ${LIMITS.finalAnswer[1]} characters.`;
+    }
+    if (!value.extAnswer) {
+      errors.extAnswer = "Add the pre-order deduction answer for the product mystery.";
+    }
+    const achievementBodyIssue = optionalLengthError(
+      value.achievementBody,
+      LIMITS.achievementBody,
+      "Achievement detail",
+    );
+    if (achievementBodyIssue) errors.achievementBody = achievementBodyIssue;
+    const finalHintIssue = optionalLengthError(value.finalHint, LIMITS.hint, "Final hint");
+    if (finalHintIssue) errors.finalHint = finalHintIssue;
   }
 
   value.onlineClues = parseClues(input.onlineClues, "onlineClues", errors);

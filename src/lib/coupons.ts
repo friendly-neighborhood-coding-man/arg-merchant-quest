@@ -414,6 +414,10 @@ export interface CampaignActivity {
   extendedSolved: number;
   couponsIssued: number;
   couponsRedeemed: number;
+  /** P1 product-clue mystery. */
+  productClaims: number;
+  productHandoffs: number;
+  hiddenEndings: number;
 }
 
 export type MerchantActivityEvent =
@@ -432,6 +436,26 @@ export type MerchantActivityEvent =
       campaignSlug: string;
       code: string;
       redeemedBy?: string | null;
+    }
+  | {
+      kind: "extended_solved";
+      at: string;
+      campaignTitle: string;
+      campaignSlug: string;
+    }
+  | {
+      kind: "product_handoff";
+      at: string;
+      campaignTitle: string;
+      campaignSlug: string;
+      reference: string;
+      handedOffBy: string | null;
+    }
+  | {
+      kind: "hidden_ending";
+      at: string;
+      campaignTitle: string;
+      campaignSlug: string;
     };
 
 export interface MerchantActivity {
@@ -455,6 +479,9 @@ interface ActivityRow {
   extended_solved: number;
   coupons_issued: number;
   coupons_redeemed: number;
+  product_claims: number;
+  product_handoffs: number;
+  hidden_endings: number;
 }
 
 export function merchantActivity(merchantId: string): MerchantActivity {
@@ -468,7 +495,10 @@ export function merchantActivity(merchantId: string): MerchantActivity {
               COALESCE(qc.failed, 0) AS payouts_failed,
               COALESCE(qc.extended, 0) AS extended_solved,
               COALESCE(cp.issued, 0) AS coupons_issued,
-              COALESCE(cp.redeemed, 0) AS coupons_redeemed
+              COALESCE(cp.redeemed, 0) AS coupons_redeemed,
+              COALESCE(pc.claims, 0) AS product_claims,
+              COALESCE(pc.handoffs, 0) AS product_handoffs,
+              COALESCE(qc.hidden, 0) AS hidden_endings
        FROM campaigns c
        LEFT JOIN (
          SELECT campaign_id,
@@ -476,7 +506,8 @@ export function merchantActivity(merchantId: string): MerchantActivity {
                 SUM(CASE WHEN payout_status = 'paid' THEN 1 ELSE 0 END) AS paid,
                 SUM(CASE WHEN payout_status IN ('pending', 'processing') THEN 1 ELSE 0 END) AS pending,
                 SUM(CASE WHEN payout_status = 'failed' THEN 1 ELSE 0 END) AS failed,
-                SUM(extended_solved) AS extended
+                SUM(extended_solved) AS extended,
+                SUM(CASE WHEN final_solved_at IS NOT NULL THEN 1 ELSE 0 END) AS hidden
          FROM quest_completions GROUP BY campaign_id
        ) qc ON qc.campaign_id = c.id
        LEFT JOIN (
@@ -485,6 +516,12 @@ export function merchantActivity(merchantId: string): MerchantActivity {
                 SUM(CASE WHEN status = 'redeemed' THEN 1 ELSE 0 END) AS redeemed
          FROM coupons GROUP BY campaign_id
        ) cp ON cp.campaign_id = c.id
+       LEFT JOIN (
+         SELECT campaign_id,
+                COUNT(*) AS claims,
+                SUM(CASE WHEN status = 'handed_off' THEN 1 ELSE 0 END) AS handoffs
+         FROM product_claims GROUP BY campaign_id
+       ) pc ON pc.campaign_id = c.id
        WHERE c.merchant_id = ?
        ORDER BY c.updated_at DESC`,
     )
@@ -502,6 +539,9 @@ export function merchantActivity(merchantId: string): MerchantActivity {
     extendedSolved: Number(row.extended_solved),
     couponsIssued: Number(row.coupons_issued),
     couponsRedeemed: Number(row.coupons_redeemed),
+    productClaims: Number(row.product_claims),
+    productHandoffs: Number(row.product_handoffs),
+    hiddenEndings: Number(row.hidden_endings),
   }));
 
   const totals = campaigns.reduce(
@@ -513,6 +553,9 @@ export function merchantActivity(merchantId: string): MerchantActivity {
       extendedSolved: sum.extendedSolved + item.extendedSolved,
       couponsIssued: sum.couponsIssued + item.couponsIssued,
       couponsRedeemed: sum.couponsRedeemed + item.couponsRedeemed,
+      productClaims: sum.productClaims + item.productClaims,
+      productHandoffs: sum.productHandoffs + item.productHandoffs,
+      hiddenEndings: sum.hiddenEndings + item.hiddenEndings,
     }),
     {
       verifiedCompletions: 0,
@@ -522,6 +565,9 @@ export function merchantActivity(merchantId: string): MerchantActivity {
       extendedSolved: 0,
       couponsIssued: 0,
       couponsRedeemed: 0,
+      productClaims: 0,
+      productHandoffs: 0,
+      hiddenEndings: 0,
     },
   );
 
@@ -537,6 +583,51 @@ export function merchantActivity(merchantId: string): MerchantActivity {
     verified_at: string;
     reward_amount: number;
     payout_status: string;
+    title: string;
+    slug: string;
+  }>;
+
+  const extendedSolves = db
+    .prepare(
+      `SELECT s.extended_solved_at, c.title, c.slug
+       FROM quest_sessions s
+       JOIN quest_completions qc ON qc.session_id = s.id
+       JOIN campaigns c ON c.id = s.campaign_id
+       WHERE c.merchant_id = ? AND s.extended_solved_at IS NOT NULL
+       ORDER BY s.extended_solved_at DESC LIMIT 12`,
+    )
+    .all(merchantId) as unknown as Array<{
+    extended_solved_at: string;
+    title: string;
+    slug: string;
+  }>;
+
+  const endings = db
+    .prepare(
+      `SELECT qc.final_solved_at, c.title, c.slug
+       FROM quest_completions qc
+       JOIN campaigns c ON c.id = qc.campaign_id
+       WHERE c.merchant_id = ? AND qc.final_solved_at IS NOT NULL
+       ORDER BY qc.final_solved_at DESC LIMIT 12`,
+    )
+    .all(merchantId) as unknown as Array<{
+    final_solved_at: string;
+    title: string;
+    slug: string;
+  }>;
+
+  const handoffs = db
+    .prepare(
+      `SELECT pc.reference, pc.handed_off_at, pc.handed_off_by, c.title, c.slug
+       FROM product_claims pc
+       JOIN campaigns c ON c.id = pc.campaign_id
+       WHERE c.merchant_id = ? AND pc.status = 'handed_off'
+       ORDER BY pc.handed_off_at DESC LIMIT 12`,
+    )
+    .all(merchantId) as unknown as Array<{
+    reference: string;
+    handed_off_at: string;
+    handed_off_by: string | null;
     title: string;
     slug: string;
   }>;
@@ -567,6 +658,32 @@ export function merchantActivity(merchantId: string): MerchantActivity {
       campaignSlug: row.slug,
       rewardAmount: row.reward_amount,
       payoutStatus: row.payout_status,
+    });
+  }
+  for (const row of extendedSolves) {
+    events.push({
+      kind: "extended_solved",
+      at: row.extended_solved_at,
+      campaignTitle: row.title,
+      campaignSlug: row.slug,
+    });
+  }
+  for (const row of handoffs) {
+    events.push({
+      kind: "product_handoff",
+      at: row.handed_off_at,
+      campaignTitle: row.title,
+      campaignSlug: row.slug,
+      reference: row.reference,
+      handedOffBy: row.handed_off_by,
+    });
+  }
+  for (const row of endings) {
+    events.push({
+      kind: "hidden_ending",
+      at: row.final_solved_at,
+      campaignTitle: row.title,
+      campaignSlug: row.slug,
     });
   }
   for (const row of coupons) {

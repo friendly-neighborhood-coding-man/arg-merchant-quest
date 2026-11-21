@@ -9,6 +9,10 @@ import {
   type CouponView,
 } from "./coupons";
 import { getCampaignById } from "./store";
+import {
+  getClaimBySession,
+  type ProductClaim,
+} from "./product-claims";
 import type { Campaign, Clue, EvidenceKind, EvidenceStatus, QuestStage } from "./types";
 
 export const PLAYER_COOKIE = "arg_player";
@@ -130,6 +134,9 @@ export interface Completion {
   chainErEndpoint: string | null;
   chainUpdatedAt: string | null;
   chainError: string | null;
+  /** P1 hidden ending. */
+  finalSolvedAt: string | null;
+  finalAnswerAttempts: number;
 }
 
 interface SessionRow {
@@ -205,6 +212,8 @@ interface CompletionRow {
   chain_er_endpoint: string | null;
   chain_updated_at: string | null;
   chain_error: string | null;
+  final_solved_at: string | null;
+  final_answer_attempts: number;
 }
 
 export type ActionResult =
@@ -294,6 +303,8 @@ function toCompletion(row: CompletionRow): Completion {
     chainErEndpoint: row.chain_er_endpoint,
     chainUpdatedAt: row.chain_updated_at,
     chainError: row.chain_error,
+    finalSolvedAt: row.final_solved_at,
+    finalAnswerAttempts: row.final_answer_attempts ?? 0,
   };
 }
 
@@ -717,9 +728,9 @@ export function advanceExtended(
       "UPDATE quest_sessions SET extended_attempts = ?, extended_solved_at = ?, last_seen_at = ? WHERE id = ?",
     ).run(attempts, now, now, session.id);
     db.prepare(
-      `UPDATE quest_completions SET extended_solved = 1, coupon_eligible = 1
+      `UPDATE quest_completions SET extended_solved = 1, coupon_eligible = ?
        WHERE session_id = ?`,
-    ).run(session.id);
+    ).run(campaign.optionalMode === "coupon" ? 1 : 0, session.id);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -729,10 +740,12 @@ export function advanceExtended(
   // P0.4: solving the extended mystery issues exactly one demo coupon for this
   // completion. Payout status is deliberately irrelevant — coupon issuance and
   // the Devnet reward are separate features.
-  try {
-    issueCouponForCompletion(session.id);
-  } catch (error) {
-    console.error("Coupon issuance failed after an extended solve:", error);
+  if (campaign.optionalMode === "coupon") {
+    try {
+      issueCouponForCompletion(session.id);
+    } catch (error) {
+      console.error("Coupon issuance failed after an extended solve:", error);
+    }
   }
 
   return { ok: true, solved: true };
@@ -835,8 +848,50 @@ export interface QuestView {
     nextTitle: string | null;
     hint: string | null;
   };
-  /** P0.4 demo coupon, issued only when the extended mystery was solved. */
+  /** P0.4 demo coupon, issued only for legacy coupon campaigns. */
   coupon: CouponView | null;
+  /**
+   * P1 optional mystery. For `product_clue` the final clue and ending are
+   * stripped out until their real unlock conditions are met, so a player cannot
+   * read them from the page payload early.
+   */
+  optional: {
+    mode: "coupon" | "product_clue";
+    available: boolean;
+    productName: string;
+    priceLabel: string;
+    prop: string;
+    claim: {
+      reference: string;
+      status: "requested" | "handed_off";
+      requestedAt: string;
+      handedOffAt: string | null;
+      handedOffBy: string | null;
+      chain: {
+        status: string | null;
+        counterAccount: string | null;
+        erEndpoint: string | null;
+        committedValue: number | null;
+        createSignature: string | null;
+        delegateSignature: string | null;
+        incrementSignature: string | null;
+        commitSignature: string | null;
+        error: string | null;
+      } | null;
+    } | null;
+    clue: { text: string } | null;
+    final: {
+      question: string;
+      attempts: number;
+      solved: boolean;
+      solvedAt: string | null;
+      hint: string | null;
+      endingTitle: string | null;
+      endingBody: string | null;
+      achievementTitle: string | null;
+      achievementBody: string | null;
+    };
+  };
 }
 
 function clueView(clue: Clue): QuestClueView {
@@ -859,7 +914,11 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
   // Issuance is idempotent, so opening an older solved completion still shows
   // its coupon without a second one being created.
   const coupon =
-    completion && completion.extendedSolved ? ensureCouponForSession(session.id) : null;
+    completion && completion.extendedSolved && campaign.optionalMode === "coupon"
+      ? ensureCouponForSession(session.id)
+      : null;
+  const productClaim =
+    completion && campaign.optionalMode === "product_clue" ? getClaimBySession(session.id) : null;
 
   let stage: QuestStage;
   if (completion) stage = "complete";
@@ -871,12 +930,14 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
   } else stage = "evidence";
 
   const extStep = session.extendedStep;
+  const extTitles = ["The social record", "The public record", "The in-store reference"];
   const extClues: Array<{ title: string; body: string }> = [];
-  if (campaign.extSocialClue) extClues.push({ title: "The post from 2019", body: campaign.extSocialClue });
-  if (campaign.extWebClue) extClues.push({ title: "The roastery's about page", body: campaign.extWebClue });
+  if (campaign.extSocialClue) extClues.push({ title: extTitles[0], body: campaign.extSocialClue });
+  if (campaign.extWebClue) extClues.push({ title: extTitles[1], body: campaign.extWebClue });
   if (campaign.extInstoreClue)
-    extClues.push({ title: "The framed photo on the top shelf", body: campaign.extInstoreClue });
-  const extTitles = ["The post from 2019", "The roastery's about page", "The framed photo on the top shelf"];
+    extClues.push({ title: extTitles[2], body: campaign.extInstoreClue });
+  // Neutral labels: the same three slots are used by every merchant's optional
+  // mystery, so a seeded campaign's old copy must not leak into another story.
 
   return {
     sessionId: session.id,
@@ -986,7 +1047,104 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
       hint: session.extendedSolvedAt || extStep >= 3 ? campaign.extHint || EXT_HINT_FALLBACK : null,
     },
     coupon: coupon ? couponView(coupon) : null,
+    optional: {
+      mode: campaign.optionalMode,
+      available: Boolean(completion && campaign.extAnswer.trim()),
+      productName: campaign.productName,
+      priceLabel: campaign.productPriceLabel,
+      prop: campaign.productProp,
+      claim: productClaim
+        ? {
+            reference: productClaim.reference,
+            status: productClaim.status,
+            requestedAt: productClaim.requestedAt,
+            handedOffAt: productClaim.handedOffAt,
+            handedOffBy: productClaim.handedOffBy,
+            chain: productClaim.chainStatus
+              ? {
+                  status: productClaim.chainStatus,
+                  counterAccount: productClaim.chainCounterAccount,
+                  erEndpoint: productClaim.chainErEndpoint,
+                  committedValue: productClaim.chainCommittedValue,
+                  createSignature: productClaim.chainCreateSignature,
+                  delegateSignature: productClaim.chainDelegateSignature,
+                  incrementSignature: productClaim.chainIncrementSignature,
+                  commitSignature: productClaim.chainCommitSignature,
+                  error: productClaim.chainError,
+                }
+              : null,
+          }
+        : null,
+      // The final clue is only serialised once staff have released it.
+      clue:
+        productClaim?.status === "handed_off" && campaign.productClue.trim()
+          ? { text: campaign.productClue }
+          : null,
+      final: {
+        question: campaign.finalQuestion,
+        attempts: completion?.finalAnswerAttempts ?? 0,
+        solved: Boolean(completion?.finalSolvedAt),
+        solvedAt: completion?.finalSolvedAt ?? null,
+        hint:
+          productClaim?.status === "handed_off"
+            ? campaign.finalHint || null
+            : null,
+        endingTitle: completion?.finalSolvedAt ? campaign.endingTitle : null,
+        endingBody: completion?.finalSolvedAt ? campaign.endingBody : null,
+        achievementTitle: completion?.finalSolvedAt ? campaign.achievementTitle : null,
+        achievementBody: completion?.finalSolvedAt ? campaign.achievementBody : null,
+      },
+    },
   };
+}
+
+/**
+ * P1: the hidden ending. Only accepted after staff released the product clue.
+ * Wrong answers return non-revealing feedback and never expose the answer.
+ */
+export function submitFinalAnswer(
+  session: QuestSession,
+  campaign: Campaign,
+  rawAnswer: string,
+): { ok: true; solved: true } | { ok: false; status: number; error: string } {
+  if (campaign.optionalMode !== "product_clue") {
+    return { ok: false, status: 409, error: "This trail does not have a hidden ending." };
+  }
+  const completion = getCompletion(session.id);
+  if (!completion) {
+    return { ok: false, status: 409, error: "Finish the free trail first." };
+  }
+  const claim = getClaimBySession(session.id);
+  if (!claim || claim.status !== "handed_off") {
+    return {
+      ok: false,
+      status: 409,
+      error: "The product clue has not been handed over yet. Order the signature product and show your reference at the counter.",
+    };
+  }
+  if (completion.finalSolvedAt) return { ok: true, solved: true };
+
+  const db = getDb();
+  const attempts = completion.finalAnswerAttempts + 1;
+  const now = new Date().toISOString();
+  if (!answersMatch(rawAnswer, campaign.finalAnswer)) {
+    db.prepare("UPDATE quest_completions SET final_answer_attempts = ? WHERE id = ?").run(
+      attempts,
+      completion.id,
+    );
+    return {
+      ok: false,
+      status: 422,
+      error:
+        campaign.finalHint ||
+        "That does not fit the product clue yet. Re-read the clue and compare it with what you already found in the shop. Nothing is revealed by a wrong attempt.",
+    };
+  }
+
+  db.prepare(
+    "UPDATE quest_completions SET final_solved_at = ?, final_answer_attempts = ? WHERE id = ?",
+  ).run(now, attempts, completion.id);
+  return { ok: true, solved: true };
 }
 
 export interface PlayerProgress {
@@ -1057,7 +1215,9 @@ export function listPlayerAchievements(playerId: string): PlayerAchievement[] {
   const rows = getDb()
     .prepare(
       `SELECT qc.*, c.title AS campaign_title, c.slug AS campaign_slug,
-              s.extended_solved_at AS extended_solved_at
+              s.extended_solved_at AS extended_solved_at,
+              c.optional_mode, c.ending_title, c.ending_body,
+              c.achievement_title, c.achievement_body
        FROM quest_completions qc
        JOIN campaigns c ON c.id = qc.campaign_id
        JOIN quest_sessions s ON s.id = qc.session_id
@@ -1069,6 +1229,11 @@ export function listPlayerAchievements(playerId: string): PlayerAchievement[] {
       campaign_title: string;
       campaign_slug: string;
       extended_solved_at: string | null;
+      optional_mode: string;
+      ending_title: string;
+      ending_body: string;
+      achievement_title: string;
+      achievement_body: string;
     }
   >;
 
@@ -1093,7 +1258,21 @@ export function listPlayerAchievements(playerId: string): PlayerAchievement[] {
         // The achievement is earned when the answer was accepted, not when the
         // basic completion was verified earlier.
         earnedAt: row.extended_solved_at ?? row.verified_at,
-        couponEligible: true,
+        couponEligible: row.coupon_eligible === 1,
+      });
+    }
+    if (row.final_solved_at) {
+      achievements.push({
+        campaignTitle: row.campaign_title,
+        campaignSlug: row.campaign_slug,
+        code: "hidden_ending",
+        name:
+          row.achievement_title.trim() || `${row.campaign_title} — the hidden ending`,
+        detail:
+          row.achievement_body.trim() ||
+          "You combined the product clue with what you found in the shop and reached the hidden ending.",
+        earnedAt: row.final_solved_at,
+        couponEligible: false,
       });
     }
   }

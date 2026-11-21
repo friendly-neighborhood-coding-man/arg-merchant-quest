@@ -235,7 +235,7 @@ export function RewardClaim({
 
       {failed && payout.error ? (
         <div className="mt-3 rounded-xl border border-rust/40 bg-rust/10 px-3.5 py-2.5">
-          <p className="text-[12px] font-semibold text-rust">The transfer was rejected on-chain</p>
+          <p className="text-[12px] font-semibold text-rust">The Devnet transfer did not complete</p>
           <p className="mt-1 break-words text-[11.5px] text-rust/85">{payout.error}</p>
         </div>
       ) : null}

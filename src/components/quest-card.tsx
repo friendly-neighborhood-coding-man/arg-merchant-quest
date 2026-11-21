@@ -61,9 +61,18 @@ export function QuestCard({
           </dd>
         </div>
         <div>
-          <dt className="mono-label text-[9px]">Coupon</dt>
-          <dd className="mt-0.5 truncate text-[12.5px] text-white/80" title={campaign.couponItem}>
-            {campaign.couponMinSpend > 0 ? `min ${formatKrw(campaign.couponMinSpend)}` : "no minimum"}
+          <dt className="mono-label text-[9px]">
+            {campaign.optionalMode === "product_clue" ? "Optional" : "Coupon"}
+          </dt>
+          <dd
+            className="mt-0.5 truncate text-[12.5px] text-white/80"
+            title={campaign.optionalMode === "product_clue" ? campaign.productName : campaign.couponItem}
+          >
+            {campaign.optionalMode === "product_clue"
+              ? "product clue"
+              : campaign.couponMinSpend > 0
+                ? `min ${formatKrw(campaign.couponMinSpend)}`
+                : "no minimum"}
           </dd>
         </div>
       </dl>

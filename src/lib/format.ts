@@ -32,6 +32,37 @@ export function formatDateTime(iso: string | null): string {
   }).format(date);
 }
 
+/**
+ * Korean demo times. Stored timestamps stay UTC ISO strings; this is display
+ * only, for merchant/staff-facing screens where the shop's local clock matters.
+ */
+export function formatDateTimeKst(iso: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Seoul",
+    timeZoneName: "short",
+  }).format(date);
+}
+
+export function formatDateKst(iso: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Asia/Seoul",
+  }).format(date);
+}
+
 export function timeAgo(iso: string | null): string {
   if (!iso) return "—";
   const then = new Date(iso).getTime();

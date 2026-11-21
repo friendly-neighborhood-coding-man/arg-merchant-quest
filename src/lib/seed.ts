@@ -49,6 +49,18 @@ interface SeedCampaign {
   extAnswer?: string;
   extHint?: string;
   extQuestion?: string;
+  optionalMode?: "coupon" | "product_clue";
+  productName?: string;
+  productPriceLabel?: string;
+  productProp?: string;
+  productClue?: string;
+  finalQuestion?: string;
+  finalAnswer?: string;
+  finalHint?: string;
+  endingTitle?: string;
+  endingBody?: string;
+  achievementTitle?: string;
+  achievementBody?: string;
   clues: SeedClue[];
 }
 
@@ -262,6 +274,23 @@ const CAMPAIGNS: SeedCampaign[] = [
     extHint: "Nine cups on the stall. Two cups that never went home. The letter names them.",
     extQuestion:
       "The 1998 photo shows nine cups on the market stall, and the letter names two more cups that never went home with a customer. How many cups does the letter count in total?",
+    optionalMode: "product_clue",
+    productName: "The Ninth Cup pour-over flight",
+    productPriceLabel: "₩9,500 (demo simulation)",
+    productProp: "A printed kraft cup sleeve",
+    productClue:
+      "Printed inside the sleeve, in the tiny type normally used for the roastery's address: “FOUR SHELVES, POURED TWICE. THEN ADD THE ELEVEN THAT NEVER WENT HOME.” The same river-crack symbol from the ninth cup is stamped beside it.",
+    finalQuestion:
+      "The sleeve gives the last instruction. How many pours does the hidden recipe make in total?",
+    finalAnswer: "19",
+    finalHint:
+      "The room has four shelves, and the sleeve says to pour twice for each. The letter already gave you eleven cups that never went home. Add them the way the sleeve asks. The answer is not the number of cups.",
+    endingTitle: "The Nineteenth Pour",
+    endingBody:
+      "The roaster never stopped making the recipe. Every closing, four shelves got two pours each, and the last eleven went into a single cup kept behind the machine — the cup that was never poured for a customer. You were not drinking a secret menu item. You were taking part in a memorial service the shop had been holding quietly since 1998. The roaster sets the nineteenth pour down in front of you, turns the sign to CLOSED, and finally sits.",
+    achievementTitle: "Keeper of the Nineteenth Pour",
+    achievementBody:
+      "You combined the shop's shelves, the 1998 letter and the clue printed inside the product to reach the hidden ending.",
     clues: [
       {
         kind: "online",
@@ -314,8 +343,11 @@ export function seedDatabase(db: DatabaseSync) {
        coupon_valid_days, coupon_notes, status, operator_note, submitted_at, reviewed_at,
        reviewed_by, published_at, created_at, updated_at,
        answer_question, answer, hint_1, hint_2,
-       ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint, ext_question
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint, ext_question,
+       optional_mode, product_name, product_price_label, product_prop, product_clue,
+       final_question, final_answer, final_hint,
+       ending_title, ending_body, achievement_title, achievement_body
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertClue = db.prepare(
     `INSERT INTO clues (id, campaign_id, kind, position, title, body, url)
@@ -383,6 +415,18 @@ export function seedDatabase(db: DatabaseSync) {
         campaign.extAnswer ?? "",
         campaign.extHint ?? "",
         campaign.extQuestion ?? "",
+        campaign.optionalMode ?? "coupon",
+        campaign.productName ?? "",
+        campaign.productPriceLabel ?? "",
+        campaign.productProp ?? "",
+        campaign.productClue ?? "",
+        campaign.finalQuestion ?? "",
+        campaign.finalAnswer ?? "",
+        campaign.finalHint ?? "",
+        campaign.endingTitle ?? "",
+        campaign.endingBody ?? "",
+        campaign.achievementTitle ?? "",
+        campaign.achievementBody ?? "",
       );
 
       let onlinePosition = 0;
@@ -406,4 +450,37 @@ export function seedDatabase(db: DatabaseSync) {
     db.exec("ROLLBACK");
     throw error;
   }
+}
+
+/**
+ * P1 upgrades the original seeded Ninth Cup to the product-clue mystery without
+ * touching player sessions, completions or coupons. The update only applies to
+ * the untouched seed row: a merchant-edited campaign is left alone.
+ */
+export function upgradeSeedStory(db: DatabaseSync) {
+  const seeded = db
+    .prepare(
+      "SELECT id, optional_mode, product_name FROM campaigns WHERE id = 'cmp_the_ninth_cup'",
+    )
+    .get() as { id: string; optional_mode: string; product_name: string } | undefined;
+  if (!seeded) return;
+  if (seeded.optional_mode === "product_clue" || seeded.product_name) return;
+
+  db.prepare(
+    `UPDATE campaigns SET
+       optional_mode = 'product_clue',
+       product_name = 'The Ninth Cup pour-over flight',
+       product_price_label = '₩9,500 (demo simulation)',
+       product_prop = 'A printed kraft cup sleeve',
+       product_clue = 'Printed inside the sleeve, in the tiny type normally used for the roastery address: “FOUR SHELVES, POURED TWICE. THEN ADD THE ELEVEN THAT NEVER WENT HOME.” The same river-crack symbol from the ninth cup is stamped beside it.',
+       final_question = 'The sleeve gives the last instruction. How many pours does the hidden recipe make in total?',
+       final_answer = '19',
+       final_hint = 'The room has four shelves, and the sleeve says to pour twice for each. The letter already gave you eleven cups that never went home. Add them the way the sleeve asks. The answer is not the number of cups.',
+       ending_title = 'The Nineteenth Pour',
+       ending_body = 'The roaster never stopped making the recipe. Every closing, four shelves got two pours each, and the last eleven went into a single cup kept behind the machine — the cup that was never poured for a customer. You were not drinking a secret menu item. You were taking part in a memorial service the shop had been holding quietly since 1998. The roaster sets the nineteenth pour down in front of you, turns the sign to CLOSED, and finally sits.',
+       achievement_title = 'Keeper of the Nineteenth Pour',
+       achievement_body = 'You combined the shop shelves, the 1998 letter and the clue printed inside the product to reach the hidden ending.',
+       updated_at = updated_at
+     WHERE id = 'cmp_the_ninth_cup'`,
+  ).run();
 }

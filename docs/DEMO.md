@@ -1,6 +1,6 @@
 # Live demo runbook
 
-Status: P0.4 walked end to end — merchant campaign, operator publication, staged player trail, camera evidence, human verification, real Devnet payout, MagicBlock ER counter commit, extended ARG, coupon issuance, staff redemption, merchant reporting.
+Status: P1 “Living ARG” walked end to end at the API/HTTP level — merchant campaign, operator publication, staged player trail, camera evidence, human verification, real Devnet payout, MagicBlock ER completion counter, extended deduction, product-clue request, staff handoff, real MagicBlock clue milestone, hidden ending, AI companion fallback, legacy coupon regression. Browser rendering and the live LLM path were **not** verified in the P1 session (see limitations).
 
 ## Setup
 
@@ -149,6 +149,67 @@ Screenshots from this run: `artifacts/p04-coupon-desktop.png`, `artifacts/p04-co
 - Staff identity is a typed demo name, not an authenticated account. Anyone with the URL can open `/staff`.
 - The reward and the coupon are independent: the coupon is issued even if the player never claims, or the payout fails.
 - No notification is sent to the merchant; the dashboard reflects the database.
+
+## P1 “Living ARG” run (2026-11-21)
+
+### One continuous demonstration script
+
+1. **Merchant** — `/merchant` → open *The Ninth Cup* product-mode campaign. Point out the product section: signature item, simulated price, prop and the private clue (revealed only after a handoff). Optionally use the **Story lab** to generate three draft concepts; nothing is auto-published.
+2. **Operator** — `/operator` → approve a submitted campaign. The campaign preview now shows the extended deduction, product clue and final answer so the operator can review playability.
+3. **Player, free trail** — `/quests/the-ninth-cup` → **Start**. Read three online records, then two in-store observations. Answer `5`. Submit camera, upload or labelled simulation evidence. No purchase is involved at any point.
+4. **Operator verifies** — `/operator/evidence` → approve. The app increments the original campaign completion counter on MagicBlock and stores the real signatures.
+5. **Player claims** — paste a Devnet address and claim 1.00 tUSDC. This happened **before** the optional mystery in the test run, which proves the fixed reward does not depend on any product order.
+6. **Companion (optional)** — open **Mara · investigation companion**. Ask “What have we discovered?”, “How might these two clues be connected?”, “What should I inspect next?” and “I have no idea what to do.” The panel labels the mode: live AI if configured, otherwise **Scripted guide**.
+7. **Extended deduction** — open the optional mystery (also reachable from the sticky **Optional mystery** jump on mobile). Answer `2` (booth number, not the number of returns). This unlocks the product request, not a coupon.
+8. **Product request** — press **Request the clue**. A reference such as `NINTH-CLUE-8BP5` appears, with explicit simulation language and no payment. Try the final answer now: the server returns 409 because the clue is still locked.
+9. **Staff handoff** — `/staff` → **Product clue handoff** → enter the reference. Confirm the fictional serving condition and press **Confirm handoff**. The app looks up the product and releases the clue once; a second handoff is refused. This is also where the separate clue milestone is created/delegated/incremented on the ER and committed.
+10. **Clue reveal** — back on the quest page, the product section shows the digital sleeve-insert prop and the clue. Ask the companion about it; its answer now references the sleeve instruction and the recorded ER milestone.
+11. **Hidden ending** — submit a wrong final answer first: useful feedback, no reveal, attempt count increments. Then submit `19`. The hidden ending “The Nineteenth Pour” and the achievement **Keeper of the Nineteenth Pour** appear. No extra payout is made.
+12. **Merchant** — `/merchant` shows product clues released, hidden endings, extended solves and the activity feed in **KST**. `/quests#achievements` keeps the achievement after a restart.
+13. **Regression** — open the legacy *Lantern Ledger* coupon `LANTER-3T5F-D9T9` at `/staff`; it still reads as redeemed and the campaign still uses coupon mode.
+
+### P1 evidence
+
+| Step | Value |
+| --- | --- |
+| Free reward (claimed before product) | `4Cf5gGwPsnvjFJyyeNeTWqnMizKV9dX5oMzUKXP9um9VEtoDmghg1CASCgxSBRynNTw9CSt7m7FSNbEE7LVt7fwU` |
+| Recipient | `6zn8exb9h6Qjwz7ZVS2yDkds5b7ba2LZnxRKo7hZ4zsS` · 0 → 1.00 tUSDC |
+| Campaign counter | `tKit7TX2wmCENAG3GmFX9HQrjwCYGsLJEDQDcL7ePvN`, committed value 3 |
+| Clue milestone PDA | `UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt` (derived from `cmp_the_ninth_cup#clue`) |
+| Milestone create | `4pvs4iddPt1SD2dCNcc4n8rFwFkBExDseVGpYnjojz6Y17su9qidCjZsurYf53Lx3WXNjYPUZz8UkpzVk5n9BATj` |
+| Milestone delegate | `2G8fpc16bWCq2AEcxMT84HTebB6GxUFCakBL7nuwtrG8NzajwjewoAv3bjF8TvM1fPKmaw2y7aosKhr6TAyrFxu5` |
+| Milestone ER increment | `43YZJb8PjL1ZxoyQka2MYRmwB1wWj1hvNYBYrFwk8b3ppmRsCxoegxnsnZnqXLtV3kHHuxrDxAEBhHSqAtgrG8Tf` |
+| Milestone commit | `5QcNv2iYiuQsw6UYPfjaj2qBs7suU4dsR72JwfJoEJeqJ1y4oL2f8Kwyah11jJRfU3RpiePcJC7vQVijBDvwL3dd` |
+| ER endpoint / committed value | `https://devnet-as.magicblock.app/` · 1 |
+| Product reference | `NINTH-CLUE-8BP5` (single handoff, duplicate 409) |
+| Final answer | `19`; premature submit 409, wrong answer 422 with hint, attempts recorded |
+| AI mode in this run | scripted fallback (no `ARG_AI_*` key in the environment); provider-failure path tested with a deliberately unreachable compatible endpoint and returned the labelled fallback |
+
+### AI companion setup and context
+
+The companion is a server route (`/api/quests/[slug]/companion`) with GET history and POST message. With `ARG_AI_BASE_URL`, `ARG_AI_MODEL` and `ARG_AI_API_KEY` it calls an OpenAI-compatible chat endpoint; without them, or on any provider error, it answers with a deterministic scripted investigator and includes a note that live AI was unavailable. The prompt contains only the filtered quest view — revealed online/in-store clues, stage, verified state, extended solved state, claim status, released product clue and MagicBlock milestone state — plus prior conversation. It never receives the private counter answer, extended answer, final answer or the unreleased clue. Conversation rows are stored in SQLite and capped for loading; no browser message is trusted as chain state.
+
+### What is real vs simulated
+
+| Component | Real / simulated |
+| --- | --- |
+| Solana Devnet reward | Real SPL transfer from the demo treasury |
+| Campaign completion counter | Real MagicBlock ER create/delegate/increment/commit |
+| Clue milestone | Real MagicBlock ER create/delegate/increment/commit on a second PDA |
+| Product order / price | **Simulated**; no payment, POS or inventory integration |
+| Staff confirmation | Human demo step; no authenticated staff account |
+| Physical sleeve insert | **Digital prop preview** of a simulated physical clue |
+| AI companion | Live if configured; otherwise labelled scripted fallback |
+| Story lab | Draft only; local concepts when no key |
+| Coupons | Fictional demo entitlements; legacy campaigns unchanged |
+
+### Product-mode database additions
+
+Additive migrations add `optional_mode`, product fields, final-answer fields and the `product_claims` and `companion_messages` tables. The seed upgrades only the untouched seeded *The Ninth Cup*; existing campaigns, completions, payouts and coupons are preserved. `optional_mode = 'coupon'` is the default, so old campaigns keep their P0.4 behavior.
+
+### Browser testing status
+
+No browser was available for the P1 session. The earlier P0.4 screenshots remain in `artifacts/`; there are **no P1 screenshots**. The 375/390 px layout was reviewed in code (single column, sticky optional jump, full-width companion drawer, wrapping reference/ticket fields) but not rendered or tapped. Treat mobile visual quality as unverified pending a Chromium pass.
 
 ## Evidence to fill in
 

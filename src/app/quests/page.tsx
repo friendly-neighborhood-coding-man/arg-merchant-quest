@@ -113,7 +113,11 @@ export default async function QuestsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="mono-label text-[9px] text-mint/70">
-                    {achievement.code === "extended_mystery" ? "Extended" : "Basic"}
+                    {achievement.code === "hidden_ending"
+                      ? "Hidden ending"
+                      : achievement.code === "extended_mystery"
+                        ? "Extended"
+                        : "Basic"}
                   </p>
                   {achievement.couponEligible ? (
                     <span className="chip border-amber/30 text-amber/80">Coupon eligible</span>

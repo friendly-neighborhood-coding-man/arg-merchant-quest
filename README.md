@@ -1,6 +1,6 @@
 # ARG Merchant Quest
 
-> **Status: P0.4 delivered — the complete journey works end to end.** A merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. Solving the optional extended mystery issues a **demo secret-menu coupon**, which staff look up and redeem once at `/staff`, and `/merchant` reports the verified completions, payouts and coupon lifecycle. Everything is a fictional Devnet demonstration.
+> **Status: P1 — Living ARG delivered.** The complete P0 journey still works: a merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. New in P1: the optional mystery can end in a **product-contained final clue** (simulated staff handoff), an **AI investigation companion** (live provider or a labelled scripted fallback), a **separate MagicBlock clue milestone** that the companion can see, a mobile-first adventure UI, and a **merchant story-drafting lab**. Legacy coupon campaigns and all existing records are preserved. Everything is a fictional Devnet demonstration.
 
 A real-world ARG advertising experience powered by Solana and MagicBlock. Merchants publish clue-driven campaigns; visitors discover approved online/in-store clues, solve a counter question, photograph the target object, and (later) earn a fixed visit reward plus a merchant-specific secret-menu coupon.
 
@@ -81,6 +81,54 @@ The Magic Router may delegate a campaign counter to `devnet-as`, `devnet-us` or 
 - **Merchant activity.** `/merchant` adds database-derived counts for verified demo completions, payouts paid/pending/failed, extended ARG solves, coupons issued and coupons redeemed, per campaign and in total, plus a recent-activity feed. The labels stay honest: no revenue, real purchases, foot traffic or conversion-rate claims.
 - **P0.3 corrections.** ER increment/commit now link to a real ER RPC verification page instead of a misleading base-layer Explorer transaction; `npm run chain:state` is a working read-only diagnostic; unconfigured payout and counter states are explicit; payout failures always carry useful text; the balance is labelled as the wallet's current balance; the docs cover treasury backup and the Magic Router's ability to select a different ER.
 
+## What P1 adds
+
+### A. Product clue and hidden ending
+
+The optional mystery is now a physical-product puzzle for campaigns that opt in (`optional_mode = 'product_clue'`). *The Ninth Cup* is seeded this way: after the free quest is verified, the extended deduction asks which booth the pencil mark names, not just a lore fact. The extended answer unlocks a product request, not a coupon.
+
+- The player chooses **The ninth cup pour-over flight** at the counter. The app creates a one-time reference such as `NINTH-CLUE-8BP5` and states plainly that ordering is simulated and never charges anything.
+- At `/staff`, the staff member looks up that reference, sees the designated product and the extended deduction, and confirms the fictional handoff. The clue is released only after that single conditional update.
+- The clue is a **printed sleeve insert** represented by a digital prop preview, labelled as a simulation of a physical clue. It is never serialized to the player before handoff; the companion context filters it out too.
+- The final answer is checked on the server. Wrong answers return non-revealing feedback and increment an attempt counter. The correct answer reveals the hidden ending, “The Nineteenth Pour”, and the persistent achievement “Keeper of the Nineteenth Pour”. No extra cash or token reward is paid.
+- Campaigns with the default `coupon` mode keep the P0.4 coupon flow; the seeded legacy *Lantern Ledger* campaign and its issued/redeemed coupon are unchanged.
+
+### B. AI investigation companion
+
+The quest page includes a compact, mobile-friendly companion panel. It answers open questions, summarizes revealed evidence, compares observations, suggests next inspections and refuses to reveal locked clues or final answers. The server builds its context from a **filtered `QuestView`**: revealed clues, stage, timestamps, unlock state and MagicBlock milestone state. Answers, the locked product clue and the final answer are not included.
+
+Configure a live OpenAI-compatible endpoint (all optional):
+
+```bash
+ARG_AI_BASE_URL=https://api.openai.com/v1
+ARG_AI_MODEL=gpt-4.1-mini
+ARG_AI_API_KEY=...            # server-side only; never commit
+```
+
+Without a key, or when the provider fails, the app answers with a deterministic scripted investigator (“Mara”) and labels the response as a scripted fallback; it never presents the fallback as live inference. Conversation history is stored per quest session in SQLite (last 40 messages loaded), and the existing 3/5-minute explicit hint gates are unchanged. The companion is not a hint bypass: it can discuss revealed material at any time and says when a stronger hint is still time-locked.
+
+### C. MagicBlock clue milestone
+
+The accepted completion counter is untouched. A second, isolated milestone counter uses the same deployed program with campaign id `${campaignId}#clue`, so a product handoff creates `["counter", sha256(campaignId#clue)]` without upgrading or replacing the P0.3 program. On the single successful staff handoff the app creates/delegates the milestone PDA, increments it **on the ER**, commits it and stores the real signatures on the claim. The companion reads this state and changes its guidance: before the handoff it points at the shop evidence; after it, it references the recorded ER milestone and the sleeve instruction. If the ER is unavailable, the handoff still succeeds locally and the claim records the chain error instead of faking success.
+
+### D. UX and mobile polish
+
+The player page now opens with a hook and objective, separates online records from the in-store visit, reveals each clue with a deliberate action, shows a verified transition, puts **Claim reward** and the optional-product invitation before technical evidence, and pins a mobile jump bar to the optional mystery. Product-unlock and hidden-ending moments get dedicated cards. Transaction and ER evidence stay available in a secondary, collapsible technical section. Merchant/staff timestamps render in **Asia/Seoul** while storage stays UTC. Coupon summaries read real issued/redeemed/expired state.
+
+### E. Merchant story lab
+
+`/merchant` includes a draft-only story lab. The merchant supplies business facts, product, season, props and atmosphere; the app returns three ARG concepts with premise, online clues, in-store observation, product clue, basic puzzle and hidden ending. Output is explicitly split into merchant-provided facts, labelled fictional material and unverified assumptions, and nothing is published automatically. It uses the same AI adapter, with deterministic local concepts when no key is configured.
+
+### P1 evidence from this run
+
+| Item | Value |
+| --- | --- |
+| Free quest reward payout | `4Cf5gGwPsnvjFJyyeNeTWqnMizKV9dX5oMzUKXP9um9VEtoDmghg1CASCgxSBRynNTw9CSt7m7FSNbEE7LVt7fwU` — 1.00 tUSDC to `6zn8exb9h6Qjwz7ZVS2yDkds5b7ba2LZnxRKo7hZ4zsS`, claimed **before** any product request |
+| Clue milestone counter | `UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt` |
+| Milestone create / delegate | `4pvs4iddPt1SD2dCNcc4n8rFwFkBExDseVGpYnjojz6Y17su9qidCjZsurYf53Lx3WXNjYPUZz8UkpzVk5n9BATj` / `2G8fpc16bWCq2AEcxMT84HTebB6GxUFCakBL7nuwtrG8NzajwjewoAv3bjF8TvM1fPKmaw2y7aosKhr6TAyrFxu5` |
+| Milestone ER increment | `43YZJb8PjL1ZxoyQka2MYRmwB1wWj1hvNYBYrFwk8b3ppmRsCxoegxnsnZnqXLtV3kHHuxrDxAEBhHSqAtgrG8Tf` |
+| Milestone commit | `5QcNv2iYiuQsw6UYPfjaj2qBs7suU4dsR72JwfJoEJeqJ1y4oL2f8Kwyah11jJRfU3RpiePcJC7vQVijBDvwL3dd` (committed value 1, endpoint `https://devnet-as.magicblock.app/`) |
+
 ## Repository layout
 
 - `src/app/` — the single web app: merchant, operator, player, staff and demo-source routes plus API routes
@@ -155,6 +203,11 @@ To see the 3/5-minute hints without waiting, start a quest and then shift that s
 - Coupon conditions are copied from the campaign at issue time; changing a campaign afterwards does not alter coupons already issued. Expiry is evaluated against the server clock when a coupon is read or redeemed.
 - The reward and the coupon are independent: a coupon is issued for a solved extended mystery even if the player never claims a payout or the payout fails.
 - Campaign slugs do not change on title edits; published campaigns remain uneditable.
+- **The product clue is a simulation.** There is no real purchase, POS, payment, inventory or delivery integration. `/staff` confirms a fictional handoff by hand, and the “physical” clue is a digital prop preview. The demo must not be presented as a real product offer.
+- **The live AI path was not exercised in the P1 session** because no provider key was available. The scripted fallback, provider-failure fallback and context filtering were tested; the OpenAI-compatible request path is implemented but unverified against a live model.
+- The companion is a narrative aid, not an oracle or a moderation system. It can still be prompted adversarially, and its output is not fact-checked; it is given no private answers or locked clue text.
+- **P1 visual checks are limited:** no working browser was available in the final session, so the 375/390 px layouts and touch targets were reviewed in code but not rendered or tapped. The P0.4 Chromium checks remain the last real browser run.
+- The clue milestone uses the existing deployed program and a derived campaign id. It is a second counter account, not a general-purpose on-chain game state; conversation, location and answers are never written on chain.
 
 See [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md) for the remaining phases.
 

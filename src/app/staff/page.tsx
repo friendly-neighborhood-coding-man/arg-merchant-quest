@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { PageHeader, Stat } from "@/components/ui";
 import { StaffRedemption } from "@/components/staff-redemption";
+import { StaffHandoff } from "@/components/staff-handoff";
 import { couponStats, listRecentRedemptions } from "@/lib/coupons";
-import { formatDateTime } from "@/lib/format";
+import { claimStats, listRecentClaims } from "@/lib/product-claims";
+import { formatDateTimeKst } from "@/lib/format";
 import { listCampaignsByStatus } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +20,8 @@ export default function StaffPage() {
   const live = listCampaignsByStatus("published");
   const stats = couponStats();
   const recent = listRecentRedemptions(8);
+  const claims = claimStats();
+  const recentClaims = listRecentClaims(8);
 
   return (
     <div className="wrap space-y-8 pt-10">
@@ -38,7 +42,63 @@ export default function StaffPage() {
         <Stat label="Expired" value={stats.expired} hint="Past validity" />
       </div>
 
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Product clues" value={claims.total} hint="Optional ARG requests" />
+        <Stat label="Clues released" value={claims.handedOff} hint="One-time handoff" />
+        <Stat label="Awaiting handoff" value={claims.awaitingHandoff} hint="Reference issued" />
+      </div>
+
       <StaffRedemption />
+
+      <StaffHandoff />
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="mono-label">Product audit trail</p>
+            <h2 className="mt-1 font-display text-2xl text-white/90">Recent clue handoffs</h2>
+          </div>
+          <span className="font-mono text-[11px] text-sage/45">
+            KST · stored in UTC
+          </span>
+        </div>
+        {recentClaims.length === 0 ? (
+          <div className="panel-flat mt-3 px-5 py-6">
+            <p className="text-[13px] leading-relaxed text-sage/70">
+              No optional product clue has been requested yet. A player earns one by finishing the
+              free trail and solving the pre-order deduction.
+            </p>
+          </div>
+        ) : (
+          <div className="panel mt-3 divide-y divide-line/60">
+            {recentClaims.map((row) => (
+              <div
+                key={`${row.reference}-${row.requestedAt}`}
+                className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="font-mono text-[12px] tracking-[0.12em] text-amber-soft">
+                    {row.reference}
+                  </p>
+                  <p className="mt-0.5 truncate text-[12px] text-sage/60">
+                    {row.productName} · {row.shopName}
+                  </p>
+                </div>
+                <div className="text-[11.5px] text-sage/55 sm:text-right">
+                  <p className={row.status === "handed_off" ? "text-mint" : "text-amber-soft"}>
+                    {row.status === "handed_off" ? "Released" : "Awaiting handoff"}
+                  </p>
+                  <p>
+                    {row.handedOffAt
+                      ? `${formatDateTimeKst(row.handedOffAt)}${row.handedOffBy ? ` · by ${row.handedOffBy}` : ""}`
+                      : formatDateTimeKst(row.requestedAt)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -71,7 +131,7 @@ export default function StaffPage() {
                   </p>
                 </div>
                 <div className="text-[11.5px] text-sage/55 sm:text-right">
-                  <p>{formatDateTime(row.redeemedAt)}</p>
+                  <p>{formatDateTimeKst(row.redeemedAt)}</p>
                   <p className="font-mono text-[10.5px] text-sage/40">by {row.redeemedBy}</p>
                 </div>
               </div>
@@ -103,7 +163,15 @@ export default function StaffPage() {
                   </p>
                 </div>
                 <div className="text-[11.5px] text-sage/70">
-                  Coupon: <span className="text-white/80">{campaign.couponItem}</span>
+                  {campaign.optionalMode === "product_clue" ? (
+                    <>
+                      Product clue: <span className="text-white/80">{campaign.productName}</span>
+                    </>
+                  ) : (
+                    <>
+                      Coupon: <span className="text-white/80">{campaign.couponItem}</span>
+                    </>
+                  )}
                 </div>
               </li>
             ))}

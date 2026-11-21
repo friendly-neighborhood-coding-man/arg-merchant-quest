@@ -33,6 +33,18 @@ interface Draft {
   extAnswer: string;
   extHint: string;
   extQuestion: string;
+  optionalMode: "coupon" | "product_clue";
+  productName: string;
+  productPriceLabel: string;
+  productProp: string;
+  productClue: string;
+  finalQuestion: string;
+  finalAnswer: string;
+  finalHint: string;
+  endingTitle: string;
+  endingBody: string;
+  achievementTitle: string;
+  achievementBody: string;
   rewardAmount: string;
   couponItem: string;
   couponMinSpend: string;
@@ -63,6 +75,18 @@ const INITIAL: Draft = {
   extAnswer: "",
   extHint: "",
   extQuestion: "",
+  optionalMode: "coupon",
+  productName: "",
+  productPriceLabel: "",
+  productProp: "",
+  productClue: "",
+  finalQuestion: "",
+  finalAnswer: "",
+  finalHint: "",
+  endingTitle: "",
+  endingBody: "",
+  achievementTitle: "",
+  achievementBody: "",
   rewardAmount: "100",
   couponItem: "",
   couponMinSpend: "15000",
@@ -100,6 +124,18 @@ function draftFromCampaign(campaign: Campaign): Draft {
     extAnswer: campaign.extAnswer,
     extHint: campaign.extHint,
     extQuestion: campaign.extQuestion,
+    optionalMode: campaign.optionalMode,
+    productName: campaign.productName,
+    productPriceLabel: campaign.productPriceLabel,
+    productProp: campaign.productProp,
+    productClue: campaign.productClue,
+    finalQuestion: campaign.finalQuestion,
+    finalAnswer: campaign.finalAnswer,
+    finalHint: campaign.finalHint,
+    endingTitle: campaign.endingTitle,
+    endingBody: campaign.endingBody,
+    achievementTitle: campaign.achievementTitle,
+    achievementBody: campaign.achievementBody,
     rewardAmount: String(campaign.rewardAmount),
     couponItem: campaign.couponItem,
     couponMinSpend: String(campaign.couponMinSpend),
@@ -287,11 +323,21 @@ export function CampaignForm({
         label: "Extended mystery (optional)",
         detail: "All four parts, or none at all.",
       },
-      {
-        done: draft.couponItem.trim().length >= 3 && Number(draft.couponValidDays) >= 1,
-        label: "Coupon terms",
-        detail: "Secret-menu item, minimum spend and validity.",
-      },
+      draft.optionalMode === "product_clue"
+        ? {
+            done:
+              draft.productName.trim().length >= 3 &&
+              draft.productClue.trim().length >= 20 &&
+              draft.finalQuestion.trim().length >= 8 &&
+              draft.finalAnswer.trim().length > 0,
+            label: "Product-clue ending",
+            detail: "Signature product, embedded clue, final question and answer.",
+          }
+        : {
+            done: draft.couponItem.trim().length >= 3 && Number(draft.couponValidDays) >= 1,
+            label: "Coupon terms",
+            detail: "Secret-menu item, minimum spend and validity.",
+          },
     ];
   }, [draft]);
 
@@ -305,6 +351,10 @@ export function CampaignForm({
 
     const payload = {
       ...draft,
+      // Product-clue campaigns do not issue a coupon. Keep the legacy field
+      // valid for storage without showing it as a player entitlement.
+      couponItem:
+        draft.couponItem.trim() || draft.productName.trim() || "Demo entitlement",
       rewardAmount: Number(draft.rewardAmount),
       couponMinSpend: Number(draft.couponMinSpend),
       couponValidDays: Number(draft.couponValidDays),
@@ -695,8 +745,21 @@ export function CampaignForm({
         <Section
           step="06"
           title="Optional extended mystery"
-          hint="A second, harder trail that unlocks an achievement and coupon eligibility. Leave all five fields empty if this campaign has none."
+          hint="A second, harder trail after the free quest. Leave it empty for no optional story. Product-clue mode ends with a physical clue and a hidden ending instead of a coupon."
         >
+          <Field label="Optional ending" htmlFor="optionalMode" hint="The coupon mode is the accepted P0.4 behaviour. Product clue is the P1 adventure.">
+            <select
+              id="optionalMode"
+              className="input"
+              value={draft.optionalMode}
+              onChange={(event) =>
+                set("optionalMode", event.target.value === "product_clue" ? "product_clue" : "coupon")
+              }
+            >
+              <option value="coupon">Demo coupon (legacy)</option>
+              <option value="product_clue">Product clue + hidden ending</option>
+            </select>
+          </Field>
           <Field
             label="Social-style clue"
             htmlFor="extSocialClue"
@@ -789,6 +852,135 @@ export function CampaignForm({
               />
             </Field>
           </div>
+
+          {draft.optionalMode === "product_clue" ? (
+            <div className="space-y-4 rounded-xl border border-amber/30 bg-amber/[0.05] p-4">
+              <div>
+                <p className="mono-label text-amber/80">Product clue ending</p>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-amber/85">
+                  The pre-order deduction above must stand on its own. This product is the optional
+                  handoff, not a condition for the free reward. Keep the clue out of every online
+                  clue: it is only released after staff confirm the demo handoff.
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Signature product" htmlFor="productName" error={errors.productName} hint="What the player requests at the counter.">
+                  <input
+                    id="productName"
+                    className={inputClass(Boolean(errors.productName))}
+                    value={draft.productName}
+                    onChange={(event) => set("productName", event.target.value)}
+                    placeholder="The Ninth Cup pour-over flight"
+                    maxLength={90}
+                  />
+                </Field>
+                <Field label="Demo price label" htmlFor="productPriceLabel" error={errors.productPriceLabel} hint="Clearly marked as a simulation; no payment is taken.">
+                  <input
+                    id="productPriceLabel"
+                    className={inputClass(Boolean(errors.productPriceLabel))}
+                    value={draft.productPriceLabel}
+                    onChange={(event) => set("productPriceLabel", event.target.value)}
+                    placeholder="₩9,500 (demo simulation)"
+                    maxLength={40}
+                  />
+                </Field>
+              </div>
+              <Field label="Physical prop" htmlFor="productProp" error={errors.productProp} hint="Cup sleeve, label, receipt insert, packaging card…">
+                <input
+                  id="productProp"
+                  className={inputClass(Boolean(errors.productProp))}
+                  value={draft.productProp}
+                  onChange={(event) => set("productProp", event.target.value)}
+                  placeholder="A printed kraft cup sleeve"
+                  maxLength={120}
+                />
+              </Field>
+              <Field label="Product clue (private until handoff)" htmlFor="productClue" error={errors.productClue} hint="A coded instruction that must be combined with an earlier observation.">
+                <textarea
+                  id="productClue"
+                  className={`${inputClass(Boolean(errors.productClue))} min-h-24 resize-y leading-relaxed`}
+                  value={draft.productClue}
+                  onChange={(event) => set("productClue", event.target.value)}
+                  placeholder="Printed inside the sleeve: FOUR SHELVES, POURED TWICE. THEN ADD THE ELEVEN THAT NEVER WENT HOME."
+                  maxLength={600}
+                />
+              </Field>
+              <Field label="Final question" htmlFor="finalQuestion" error={errors.finalQuestion} hint="Asked only after the clue is released.">
+                <input
+                  id="finalQuestion"
+                  className={inputClass(Boolean(errors.finalQuestion))}
+                  value={draft.finalQuestion}
+                  onChange={(event) => set("finalQuestion", event.target.value)}
+                  placeholder="How many pours does the hidden recipe make in total?"
+                  maxLength={220}
+                />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Final answer" htmlFor="finalAnswer" error={errors.finalAnswer} hint="Checked on the server; never sent before release.">
+                  <input
+                    id="finalAnswer"
+                    className={inputClass(Boolean(errors.finalAnswer))}
+                    value={draft.finalAnswer}
+                    onChange={(event) => set("finalAnswer", event.target.value)}
+                    placeholder="19"
+                    maxLength={60}
+                  />
+                </Field>
+                <Field label="Wrong-answer nudge" htmlFor="finalHint" error={errors.finalHint} hint="Useful feedback that does not reveal the answer.">
+                  <input
+                    id="finalHint"
+                    className={inputClass(Boolean(errors.finalHint))}
+                    value={draft.finalHint}
+                    onChange={(event) => set("finalHint", event.target.value)}
+                    placeholder="Add the shelf count and the letter, the way the sleeve asks."
+                    maxLength={260}
+                  />
+                </Field>
+              </div>
+              <Field label="Hidden ending title" htmlFor="endingTitle" error={errors.endingTitle}>
+                <input
+                  id="endingTitle"
+                  className={inputClass(Boolean(errors.endingTitle))}
+                  value={draft.endingTitle}
+                  onChange={(event) => set("endingTitle", event.target.value)}
+                  placeholder="The Nineteenth Pour"
+                  maxLength={90}
+                />
+              </Field>
+              <Field label="Hidden ending narrative" htmlFor="endingBody" error={errors.endingBody}>
+                <textarea
+                  id="endingBody"
+                  className={`${inputClass(Boolean(errors.endingBody))} min-h-24 resize-y leading-relaxed`}
+                  value={draft.endingBody}
+                  onChange={(event) => set("endingBody", event.target.value)}
+                  placeholder="What the player finally understands, in 3–5 sentences."
+                  maxLength={900}
+                />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Achievement title" htmlFor="achievementTitle" error={errors.achievementTitle}>
+                  <input
+                    id="achievementTitle"
+                    className={inputClass(Boolean(errors.achievementTitle))}
+                    value={draft.achievementTitle}
+                    onChange={(event) => set("achievementTitle", event.target.value)}
+                    placeholder="Keeper of the Nineteenth Pour"
+                    maxLength={90}
+                  />
+                </Field>
+                <Field label="Achievement detail" htmlFor="achievementBody" error={errors.achievementBody}>
+                  <input
+                    id="achievementBody"
+                    className={inputClass(Boolean(errors.achievementBody))}
+                    value={draft.achievementBody}
+                    onChange={(event) => set("achievementBody", event.target.value)}
+                    placeholder="You combined the shop, the letter and the product clue."
+                    maxLength={320}
+                  />
+                </Field>
+              </div>
+            </div>
+          ) : null}
         </Section>
 
         <Section
@@ -796,6 +988,15 @@ export function CampaignForm({
           title="Reward &amp; coupon"
           hint="Rewards are fixed and valueless in this prototype. Coupon terms are shown before anyone plays."
         >
+          {draft.optionalMode === "product_clue" ? (
+            <div className="rounded-xl border border-line/70 bg-ink-soft/50 px-4 py-3">
+              <p className="text-[11.5px] leading-relaxed text-sage/65">
+                This campaign uses the product-clue ending, so it does not issue a coupon. The
+                legacy coupon fields stay stored for compatibility but are never shown to players
+                or issued on this trail. The fixed free reward is unchanged.
+              </p>
+            </div>
+          ) : null}
           <div className="grid gap-4 sm:grid-cols-3">
             <Field
               label="Reward (test credits)"

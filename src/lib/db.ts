@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
 import path from "node:path";
-import { seedDatabase } from "./seed";
+import { seedDatabase, upgradeSeedStory } from "./seed";
 
 const SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS merchants (
@@ -189,6 +189,54 @@ CREATE TABLE IF NOT EXISTS coupons (
 CREATE INDEX IF NOT EXISTS coupons_campaign_idx ON coupons (campaign_id);
 CREATE INDEX IF NOT EXISTS coupons_player_idx ON coupons (player_id, issued_at);
 CREATE INDEX IF NOT EXISTS coupons_status_idx ON coupons (status, expires_at);
+
+-- P1: the optional product-clue mystery. One claim per verified completion that
+-- solved the pre-order deduction. Staff confirm the fictional product handoff,
+-- which unlocks the final clue. No payment is processed or recorded here.
+CREATE TABLE IF NOT EXISTS product_claims (
+  id TEXT PRIMARY KEY,
+  reference TEXT NOT NULL UNIQUE,
+  completion_id TEXT NOT NULL UNIQUE REFERENCES quest_completions(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  player_id TEXT NOT NULL,
+  product_name TEXT NOT NULL,
+  price_label TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL CHECK (status IN ('requested', 'handed_off')) DEFAULT 'requested',
+  requested_at TEXT NOT NULL,
+  handed_off_at TEXT,
+  handed_off_by TEXT,
+  handoff_note TEXT,
+  chain_status TEXT,
+  chain_counter_account TEXT,
+  chain_program_id TEXT,
+  chain_create_signature TEXT,
+  chain_delegate_signature TEXT,
+  chain_increment_signature TEXT,
+  chain_commit_signature TEXT,
+  chain_counter_value INTEGER,
+  chain_committed_value INTEGER,
+  chain_er_endpoint TEXT,
+  chain_updated_at TEXT,
+  chain_error TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS product_claims_campaign_idx ON product_claims (campaign_id);
+CREATE INDEX IF NOT EXISTS product_claims_status_idx ON product_claims (status, requested_at);
+
+-- P1: the investigation companion keeps a short, per-session transcript so it
+-- can remember revealed clues without putting conversations on-chain.
+CREATE TABLE IF NOT EXISTS companion_messages (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES quest_sessions(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+  content TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'scripted',
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS companion_messages_session_idx ON companion_messages (session_id, created_at);
 `;
 
 type GlobalWithDb = typeof globalThis & { __argMerchantDb?: DatabaseSync };
@@ -279,6 +327,78 @@ const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: string }> =
     column: "chain_counter_account",
     ddl: "ALTER TABLE campaigns ADD COLUMN chain_counter_account TEXT",
   },
+  // P1 — optional product-clue mystery. Campaigns default to the legacy coupon
+  // mode so P0.4 records keep their original meaning.
+  {
+    table: "campaigns",
+    column: "optional_mode",
+    ddl: "ALTER TABLE campaigns ADD COLUMN optional_mode TEXT NOT NULL DEFAULT 'coupon'",
+  },
+  {
+    table: "campaigns",
+    column: "product_name",
+    ddl: "ALTER TABLE campaigns ADD COLUMN product_name TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "product_price_label",
+    ddl: "ALTER TABLE campaigns ADD COLUMN product_price_label TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "product_prop",
+    ddl: "ALTER TABLE campaigns ADD COLUMN product_prop TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "product_clue",
+    ddl: "ALTER TABLE campaigns ADD COLUMN product_clue TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "final_question",
+    ddl: "ALTER TABLE campaigns ADD COLUMN final_question TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "final_answer",
+    ddl: "ALTER TABLE campaigns ADD COLUMN final_answer TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "final_hint",
+    ddl: "ALTER TABLE campaigns ADD COLUMN final_hint TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "ending_title",
+    ddl: "ALTER TABLE campaigns ADD COLUMN ending_title TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "ending_body",
+    ddl: "ALTER TABLE campaigns ADD COLUMN ending_body TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "achievement_title",
+    ddl: "ALTER TABLE campaigns ADD COLUMN achievement_title TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "achievement_body",
+    ddl: "ALTER TABLE campaigns ADD COLUMN achievement_body TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "quest_completions",
+    column: "final_answer_attempts",
+    ddl: "ALTER TABLE quest_completions ADD COLUMN final_answer_attempts INTEGER NOT NULL DEFAULT 0",
+  },
+  {
+    table: "quest_completions",
+    column: "final_solved_at",
+    ddl: "ALTER TABLE quest_completions ADD COLUMN final_solved_at TEXT",
+  },
   // P0.3 — real Devnet payout and MagicBlock execution evidence.
   ...[
     ["payout_wallet", "TEXT"],
@@ -333,6 +453,7 @@ export function getDb(): DatabaseSync {
   db.exec("PRAGMA foreign_keys = ON;");
   migrate(db);
   seedDatabase(db);
+  upgradeSeedStory(db);
 
   globalForDb.__argMerchantDb = db;
   return db;

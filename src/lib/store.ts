@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { getDb, transaction } from "./db";
-import type { Campaign, CampaignStatus, Clue, ClueKind, Merchant } from "./types";
+import type { Campaign, CampaignStatus, Clue, ClueKind, Merchant, OptionalMode } from "./types";
 import type { CampaignInput } from "./validation";
 
 interface CampaignRow {
@@ -43,6 +43,18 @@ interface CampaignRow {
   ext_hint: string;
   ext_question: string;
   chain_counter_account: string | null;
+  optional_mode: OptionalMode;
+  product_name: string;
+  product_price_label: string;
+  product_prop: string;
+  product_clue: string;
+  final_question: string;
+  final_answer: string;
+  final_hint: string;
+  ending_title: string;
+  ending_body: string;
+  achievement_title: string;
+  achievement_body: string;
 }
 
 interface ClueRow {
@@ -122,6 +134,18 @@ function toCampaign(row: CampaignRow, clues: Clue[]): Campaign {
     extHint: row.ext_hint,
     extQuestion: row.ext_question,
     chainCounterAccount: row.chain_counter_account,
+    optionalMode: row.optional_mode ?? "coupon",
+    productName: row.product_name ?? "",
+    productPriceLabel: row.product_price_label ?? "",
+    productProp: row.product_prop ?? "",
+    productClue: row.product_clue ?? "",
+    finalQuestion: row.final_question ?? "",
+    finalAnswer: row.final_answer ?? "",
+    finalHint: row.final_hint ?? "",
+    endingTitle: row.ending_title ?? "",
+    endingBody: row.ending_body ?? "",
+    achievementTitle: row.achievement_title ?? "",
+    achievementBody: row.achievement_body ?? "",
     clues,
   };
 }
@@ -306,8 +330,11 @@ export function createCampaign(input: CampaignInput, merchantId: string): Campai
          target_object, target_object_hint, reward_amount, coupon_item, coupon_min_spend,
          coupon_valid_days, coupon_notes, status, submitted_at, created_at, updated_at,
          answer_question, answer, hint_1, hint_2,
-         ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint, ext_question
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint, ext_question,
+         optional_mode, product_name, product_price_label, product_prop, product_clue,
+         final_question, final_answer, final_hint,
+         ending_title, ending_body, achievement_title, achievement_body
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       merchantId,
@@ -337,6 +364,18 @@ export function createCampaign(input: CampaignInput, merchantId: string): Campai
       input.extAnswer,
       input.extHint,
       input.extQuestion,
+      input.optionalMode,
+      input.productName,
+      input.productPriceLabel,
+      input.productProp,
+      input.productClue,
+      input.finalQuestion,
+      input.finalAnswer,
+      input.finalHint,
+      input.endingTitle,
+      input.endingBody,
+      input.achievementTitle,
+      input.achievementBody,
     );
 
     const insertClue = db.prepare(
@@ -425,7 +464,9 @@ export function updateCampaign(
            coupon_min_spend = ?, coupon_valid_days = ?, coupon_notes = ?, updated_at = ?,
            answer_question = ?, answer = ?, hint_1 = ?, hint_2 = ?,
            ext_social_clue = ?, ext_web_clue = ?, ext_instore_clue = ?, ext_answer = ?, ext_hint = ?,
-           ext_question = ?
+           ext_question = ?, optional_mode = ?, product_name = ?, product_price_label = ?,
+           product_prop = ?, product_clue = ?, final_question = ?, final_answer = ?, final_hint = ?,
+           ending_title = ?, ending_body = ?, achievement_title = ?, achievement_body = ?
        WHERE id = ?`,
     ).run(
       input.title,
@@ -452,6 +493,18 @@ export function updateCampaign(
       input.extAnswer,
       input.extHint,
       input.extQuestion,
+      input.optionalMode,
+      input.productName,
+      input.productPriceLabel,
+      input.productProp,
+      input.productClue,
+      input.finalQuestion,
+      input.finalAnswer,
+      input.finalHint,
+      input.endingTitle,
+      input.endingBody,
+      input.achievementTitle,
+      input.achievementBody,
       id,
     );
     replaceClues(db, id, input);
@@ -487,6 +540,29 @@ export function submitCampaignForReview(id: string, merchantId: string): Mutatio
         "Add the counter question and its answer before submitting. Players solve that answer to unlock evidence, so the trail is not playable without it.",
     };
   }
+  if (campaign.optionalMode === "product_clue") {
+    if (!campaign.extAnswer.trim()) {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          "A product-clue mystery needs the pre-order deduction answer before it can be submitted.",
+      };
+    }
+    if (
+      !campaign.productName.trim() ||
+      !campaign.productClue.trim() ||
+      !campaign.finalQuestion.trim() ||
+      !campaign.finalAnswer.trim()
+    ) {
+      return {
+        ok: false,
+        status: 409,
+        error:
+          "Add the signature product, the product clue, the final question and its answer before submitting.",
+      };
+    }
+  }
 
   const now = new Date().toISOString();
   // last_rejection_note / last_rejection_at are deliberately kept: the operator
@@ -520,6 +596,17 @@ export function reviewCampaign(
       ok: false,
       status: 409,
       error: "Send this back: it has no counter answer, so players could not complete it.",
+    };
+  }
+  if (
+    decision === "approve" &&
+    campaign.optionalMode === "product_clue" &&
+    (!campaign.productName.trim() || !campaign.productClue.trim() || !campaign.finalAnswer.trim())
+  ) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Send this back: its product-clue mystery is missing a clue or a final answer.",
     };
   }
 

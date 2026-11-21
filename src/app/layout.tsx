@@ -32,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <span aria-hidden className="text-line">
                 ·
               </span>
-              <span className="font-mono text-[10px] tracking-[0.16em] uppercase">P0.4</span>
+              <span className="font-mono text-[10px] tracking-[0.16em] uppercase">P1</span>
             </div>
           </div>
         </footer>

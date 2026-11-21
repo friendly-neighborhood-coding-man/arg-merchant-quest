@@ -4,7 +4,7 @@ import { PageHeader, Stat, StatusBadge } from "@/components/ui";
 import { SubmitForReview } from "@/components/submit-for-review";
 import { getDemoMerchant, listMerchantCampaigns, merchantStats } from "@/lib/store";
 import { merchantActivity } from "@/lib/coupons";
-import { formatDateTime, timeAgo } from "@/lib/format";
+import { formatDateTimeKst, timeAgo } from "@/lib/format";
 import type { Campaign, CampaignStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -152,7 +152,7 @@ export default function MerchantPage() {
           <span className="chip border-line text-sage/60">From this app&apos;s database</span>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
           <Stat
             label="Verified demo completions"
             value={activity.totals.verifiedCompletions}
@@ -178,6 +178,16 @@ export default function MerchantPage() {
             value={activity.totals.couponsRedeemed}
             hint="Confirmed by staff"
           />
+          <Stat
+            label="Product clues released"
+            value={activity.totals.productHandoffs}
+            hint={`${activity.totals.productClaims} orders simulated`}
+          />
+          <Stat
+            label="Hidden endings"
+            value={activity.totals.hiddenEndings}
+            hint="Final answers accepted"
+          />
         </div>
 
         {activity.campaigns.length > 0 ? (
@@ -191,7 +201,9 @@ export default function MerchantPage() {
                   <th className="py-2 pr-3 text-right font-normal">Payouts pending / failed</th>
                   <th className="py-2 pr-3 text-right font-normal">Extended solved</th>
                   <th className="py-2 pr-3 text-right font-normal">Coupons issued</th>
-                  <th className="py-2 text-right font-normal">Coupons redeemed</th>
+                  <th className="py-2 pr-3 text-right font-normal">Coupons redeemed</th>
+                  <th className="py-2 pr-3 text-right font-normal">Product clues</th>
+                  <th className="py-2 text-right font-normal">Hidden endings</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/50">
@@ -221,8 +233,14 @@ export default function MerchantPage() {
                     <td className="py-2.5 pr-3 text-right font-mono text-amber-soft">
                       {row.couponsIssued}
                     </td>
-                    <td className="py-2.5 text-right font-mono text-berry">
+                    <td className="py-2.5 pr-3 text-right font-mono text-berry">
                       {row.couponsRedeemed}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono text-amber-soft">
+                      {row.productHandoffs}
+                    </td>
+                    <td className="py-2.5 text-right font-mono text-mint/90">
+                      {row.hiddenEndings}
                     </td>
                   </tr>
                 ))}
@@ -258,9 +276,9 @@ export default function MerchantPage() {
           </div>
         ) : (
           <ul className="panel mt-3 divide-y divide-line/60">
-            {activity.recent.map((event) => (
+            {activity.recent.map((event, index) => (
               <li
-                key={`${event.kind}-${event.at}-${event.campaignSlug}-${event.kind === "completion" ? "" : event.code}`}
+                key={`${event.kind}-${event.at}-${event.campaignSlug}-${index}`}
                 className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
@@ -269,17 +287,27 @@ export default function MerchantPage() {
                       ? "Verified demo completion"
                       : event.kind === "coupon_issued"
                         ? "Demo coupon issued"
-                        : "Demo coupon redeemed"}{" "}
+                        : event.kind === "coupon_redeemed"
+                          ? "Demo coupon redeemed"
+                          : event.kind === "extended_solved"
+                            ? "Extended mystery solved"
+                            : event.kind === "product_handoff"
+                              ? "Product clue released"
+                              : "Hidden ending found"}{" "}
                     <span className="text-sage/55">· {event.campaignTitle}</span>
                   </p>
                   <p className="mt-0.5 text-[11.5px] text-sage/55">
                     {event.kind === "completion"
                       ? `${event.rewardAmount} test credits · payout ${event.payoutStatus}`
-                      : `Code ${event.code}${event.kind === "coupon_redeemed" && event.redeemedBy ? ` · by ${event.redeemedBy}` : ""}`}
+                      : event.kind === "coupon_issued" || event.kind === "coupon_redeemed"
+                        ? `Code ${event.code}${event.kind === "coupon_redeemed" && event.redeemedBy ? ` · by ${event.redeemedBy}` : ""}`
+                        : event.kind === "product_handoff"
+                          ? `Reference ${event.reference}${event.handedOffBy ? ` · by ${event.handedOffBy}` : ""}`
+                          : "Optional story milestone"}
                   </p>
                 </div>
                 <p className="shrink-0 text-[11px] text-sage/40">
-                  {formatDateTime(event.at)} · {timeAgo(event.at)}
+                  {formatDateTimeKst(event.at)} KST · {timeAgo(event.at)}
                 </p>
               </li>
             ))}
@@ -306,7 +334,9 @@ export default function MerchantPage() {
         </ol>
         <p className="mt-3 border-t border-line/60 pt-3 text-[11.5px] text-sage/50">
           Reward payouts, the MagicBlock completion counter, demo coupons and staff redemption are
-          connected. The counts above are demo activity from this app, not business results.
+          connected, and the optional product clue adds a real MagicBlock milestone when staff
+          release it. The counts above are demo activity from this app, not business results. Times
+          are shown in the shop's Korean local time; storage stays UTC.
         </p>
       </section>
     </div>

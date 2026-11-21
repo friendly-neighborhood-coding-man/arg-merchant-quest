@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CampaignPreview } from "@/components/campaign-preview";
 import { SubmitForReview } from "@/components/submit-for-review";
 import { StatusBadge } from "@/components/ui";
-import { formatDateTime, timeAgo } from "@/lib/format";
+import { formatDateTimeKst, timeAgo } from "@/lib/format";
 import { getCampaignById, getDemoMerchant } from "@/lib/store";
 import type { Campaign } from "@/lib/types";
 
@@ -46,7 +46,7 @@ function Pipeline({ campaign }: { campaign: Campaign }) {
             <p className="mono-label text-[9px]">{step.label}</p>
           </div>
           <p className="mt-1.5 text-[12px] text-white/75">
-            {step.at ? formatDateTime(step.at) : "Not yet"}
+            {step.at ? `${formatDateTimeKst(step.at)} KST` : "Not yet"}
           </p>
         </li>
       ))}
@@ -142,7 +142,7 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <p className="mono-label text-rust/80">Operator feedback</p>
             <p className="text-[11px] text-rust/65">
-              {campaign.reviewedBy ?? "operator"} · {formatDateTime(campaign.lastRejectionAt)}
+              {campaign.reviewedBy ?? "operator"} · {formatDateTimeKst(campaign.lastRejectionAt)} KST
             </p>
           </div>
           <p className="mt-2 text-[13.5px] leading-relaxed text-rust/95">
@@ -159,8 +159,8 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
         <div className="panel-flat px-4 py-3">
           <p className="text-[13px] leading-relaxed text-sage/80">
             {campaign.status === "pending"
-              ? `Resubmitted ${timeAgo(campaign.submittedAt)} after an operator sent it back on ${formatDateTime(campaign.lastRejectionAt)}. The earlier note is kept below so the operator can compare.`
-              : `Approved after an earlier round of changes (sent back on ${formatDateTime(campaign.lastRejectionAt)}). The original note is kept below.`}
+              ? `Resubmitted ${timeAgo(campaign.submittedAt)} after an operator sent it back on ${formatDateTimeKst(campaign.lastRejectionAt)} KST. The earlier note is kept below so the operator can compare.`
+              : `Approved after an earlier round of changes (sent back on ${formatDateTimeKst(campaign.lastRejectionAt)} KST). The original note is kept below.`}
           </p>
         </div>
       ) : null}
@@ -168,7 +168,7 @@ export default async function MerchantCampaignDetail({ params, searchParams }: P
       {campaign.status === "pending" && !campaign.lastRejectionNote ? (
         <div className="panel-flat px-4 py-3">
           <p className="text-[13px] text-sage/80">
-            Waiting for an operator decision since {formatDateTime(campaign.submittedAt)}. You will
+            Waiting for an operator decision since {formatDateTimeKst(campaign.submittedAt)} KST. You will
             see the operator&apos;s note here if it is sent back.
           </p>
         </div>

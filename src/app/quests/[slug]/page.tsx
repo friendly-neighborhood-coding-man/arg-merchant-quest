@@ -24,6 +24,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+const campaignOptionalCopy =
+  "Some trails hide a second clue in a specific product. It is optional, simulated, and never changes the fixed reward.";
+
 const HOW_IT_RUNS = [
   {
     title: "1 · Read the public trail",
@@ -40,6 +43,10 @@ const HOW_IT_RUNS = [
   {
     title: "4 · Photograph what you found",
     body: "In-app camera, optional location, and a person reviews the submission before it counts.",
+  },
+  {
+    title: "5 · Optional: follow the deeper story",
+    body: campaignOptionalCopy,
   },
 ];
 
@@ -169,36 +176,60 @@ export default async function QuestDetailPage({ params }: PageProps) {
             </p>
           </div>
 
-          <div className="panel-flat p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="mono-label">Demo coupon</p>
-              <span className="chip border-amber/30 text-amber/80">Extended ARG</span>
-            </div>
-            <p className="mt-2 font-display text-lg leading-snug text-white/90">
-              {campaign.couponItem}
-            </p>
-            <dl className="mt-3 grid grid-cols-2 gap-3 text-[12.5px]">
-              <div>
-                <dt className="text-sage/55">Minimum spend</dt>
-                <dd className="text-white/85">
-                  {campaign.couponMinSpend > 0 ? formatKrw(campaign.couponMinSpend) : "No minimum"}
-                </dd>
+          {campaign.optionalMode === "product_clue" ? (
+            <div className="panel-flat border-amber/25 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="mono-label">Optional product clue</p>
+                <span className="chip border-amber/30 text-amber/80">Simulation</span>
               </div>
-              <div>
-                <dt className="text-sage/55">Validity</dt>
-                <dd className="text-white/85">{couponWindowCopy(campaign.couponValidDays)}</dd>
-              </div>
-            </dl>
-            {campaign.couponNotes ? (
-              <p className="mt-3 border-t border-line/60 pt-3 text-[11.5px] leading-relaxed text-sage/65">
-                {campaign.couponNotes}
+              <p className="mt-2 font-display text-lg leading-snug text-white/90">
+                {campaign.productName}
               </p>
-            ) : null}
-            <p className="mt-3 text-[11px] leading-relaxed text-amber/70">
-              Solving the optional extended mystery issues this demo coupon once. It has no cash
-              value and cannot be redeemed at a real business.
-            </p>
-          </div>
+              <p className="mt-1 text-[12px] leading-relaxed text-sage/65">
+                The deeper mystery ends with a clue in the product{campaign.productProp ? ` (${campaign.productProp})` : ""}. A demo order reference is confirmed by staff; no payment is processed and no real purchase is claimed.
+              </p>
+              {campaign.productPriceLabel ? (
+                <p className="mt-2 font-mono text-[11px] text-amber/70">
+                  Demo price: {campaign.productPriceLabel}
+                </p>
+              ) : null}
+              <p className="mt-3 text-[11px] leading-relaxed text-amber/70">
+                Optional, requires the free trail first, and never changes the fixed reward. The
+                product clue is released once by staff.
+              </p>
+            </div>
+          ) : (
+            <div className="panel-flat p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="mono-label">Demo coupon</p>
+                <span className="chip border-amber/30 text-amber/80">Extended ARG</span>
+              </div>
+              <p className="mt-2 font-display text-lg leading-snug text-white/90">
+                {campaign.couponItem}
+              </p>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-[12.5px]">
+                <div>
+                  <dt className="text-sage/55">Minimum spend</dt>
+                  <dd className="text-white/85">
+                    {campaign.couponMinSpend > 0 ? formatKrw(campaign.couponMinSpend) : "No minimum"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sage/55">Validity</dt>
+                  <dd className="text-white/85">{couponWindowCopy(campaign.couponValidDays)}</dd>
+                </div>
+              </dl>
+              {campaign.couponNotes ? (
+                <p className="mt-3 border-t border-line/60 pt-3 text-[11.5px] leading-relaxed text-sage/65">
+                  {campaign.couponNotes}
+                </p>
+              ) : null}
+              <p className="mt-3 text-[11px] leading-relaxed text-amber/70">
+                Solving the optional extended mystery issues this demo coupon once. It has no cash
+                value and cannot be redeemed at a real business.
+              </p>
+            </div>
+          )}
 
           <div className="panel p-4">
             <p className="mono-label">Ready?</p>

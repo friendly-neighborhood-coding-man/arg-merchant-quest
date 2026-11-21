@@ -1,6 +1,13 @@
 export type CampaignStatus = "draft" | "pending" | "published" | "rejected";
 export type ClueKind = "online" | "instore";
 
+/**
+ * P1 optional mystery mode. `coupon` is the accepted P0.4 behaviour and stays
+ * the default for every existing campaign. `product_clue` replaces the coupon
+ * with a product-contained clue, a staff handoff and a hidden ending.
+ */
+export type OptionalMode = "coupon" | "product_clue";
+
 export interface Clue {
   id: string;
   campaignId: string;
@@ -46,6 +53,20 @@ export interface Campaign {
   /** The extended mystery's question. Optional: seeded campaigns fall back to
    * a generic prompt when it is empty. */
   extQuestion: string;
+  /** P1 optional mystery. See OptionalMode. */
+  optionalMode: OptionalMode;
+  /** P1 product-clue fields. The clue itself is private until staff handoff. */
+  productName: string;
+  productPriceLabel: string;
+  productProp: string;
+  productClue: string;
+  finalQuestion: string;
+  finalAnswer: string;
+  finalHint: string;
+  endingTitle: string;
+  endingBody: string;
+  achievementTitle: string;
+  achievementBody: string;
   /** Completion-counter account on Solana, once this campaign has one. */
   chainCounterAccount: string | null;
   status: CampaignStatus;
