@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { EvidenceKind } from "@/lib/types";
 import type { QuestClueView, QuestView } from "@/lib/quest-store";
 import { formatDateTime } from "@/lib/format";
+import { RewardClaim, type RewardPanelData } from "./reward-claim";
 
 const STEPS = ["Online trail", "In the shop", "The question", "Evidence", "Verified"];
 
@@ -21,7 +22,8 @@ function stepIndex(stage: QuestView["stage"]): number {
     case "reviewing":
       return 3;
     case "complete":
-      return 4;
+      // Past the last step, so every step in the rail shows as completed.
+      return STEPS.length;
     default:
       return 0;
   }
@@ -634,13 +636,28 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
   );
 }
 
-export function QuestRun({ view }: { view: QuestView }) {
+export function QuestRun({
+  view,
+  reward,
+}: {
+  view: QuestView;
+  reward: RewardPanelData | null;
+}) {
   const router = useRouter();
   const slug = view.campaign.slug;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
   const [answerError, setAnswerError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(view.elapsedSeconds);
+
+  useEffect(() => setElapsed(view.elapsedSeconds), [view.elapsedSeconds]);
+  useEffect(() => {
+    // The trail clock only runs until the operator verifies the completion.
+    if (view.completion) return;
+    const id = window.setInterval(() => setElapsed((value) => value + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [view.completion]);
 
   const hintOne = useCountdown(view.hints.one.unlockInSeconds);
   const hintTwo = useCountdown(view.hints.two.unlockInSeconds);
@@ -679,6 +696,27 @@ export function QuestRun({ view }: { view: QuestView }) {
 
   return (
     <div className="space-y-6">
+      {view.completion ? (
+        <div className="rounded-2xl border border-mint/40 bg-mint/10 px-4 py-3">
+          <p className="text-[13px] font-semibold text-mint">
+            Quest verified — the counter approved your evidence.
+          </p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-mint/80">
+            Your {view.completion.rewardAmount}-credit reward is unclaimed until you send it to a
+            Devnet wallet below. The optional second question is still open.
+          </p>
+        </div>
+      ) : view.stage === "reviewing" ? (
+        <div className="rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3">
+          <p className="text-[13px] font-semibold text-amber-soft">
+            Evidence submitted — a person is checking it.
+          </p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-amber/80">
+            This page will update on its own. Nothing is approved automatically.
+          </p>
+        </div>
+      ) : null}
+
       <section className="panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -691,7 +729,10 @@ export function QuestRun({ view }: { view: QuestView }) {
           </div>
           <div className="text-right">
             <p className="mono-label text-[9px]">On this trail</p>
-            <p className="mt-1 font-mono text-[13px] text-white/80">{mmss(view.elapsedSeconds)}</p>
+            <p className="mt-1 font-mono text-[13px] text-white/80">{mmss(elapsed)}</p>
+            <p className="text-[10px] text-sage/40">
+              {view.completion ? "stopped at verification" : "running"}
+            </p>
           </div>
         </div>
         <div className="mt-4">
@@ -935,7 +976,7 @@ export function QuestRun({ view }: { view: QuestView }) {
               <dt className="mono-label text-[9px]">Fixed reward</dt>
               <dd className="mt-1 text-amber">{view.completion.rewardAmount} Devnet test credits</dd>
               <dd className="text-[11px] text-sage/45">
-                Recorded; the transfer itself is P0.3.
+                Claimable below as a real Devnet token transfer.
               </dd>
             </div>
             <div>
@@ -979,11 +1020,38 @@ export function QuestRun({ view }: { view: QuestView }) {
         </section>
       ) : null}
 
+      {view.completion && reward ? (
+        <RewardClaim
+          slug={slug}
+          reward={reward}
+          payout={{
+            status: view.completion.payoutStatus,
+            wallet: view.completion.payout.wallet,
+            signature: view.completion.payout.signature,
+            error: view.completion.payout.error,
+            recipientBefore: view.completion.payout.recipientBefore,
+            recipientAfter: view.completion.payout.recipientAfter,
+            recipientTokenAccount: view.completion.payout.recipientTokenAccount,
+            claimedAt: view.completion.payout.claimedAt,
+            confirmedAt: view.completion.payout.confirmedAt,
+            explorerUrl: view.completion.payout.signature
+              ? `https://explorer.solana.com/tx/${view.completion.payout.signature}?cluster=devnet`
+              : null,
+            tokenAccountUrl: view.completion.payout.recipientTokenAccount
+              ? `https://explorer.solana.com/address/${view.completion.payout.recipientTokenAccount}?cluster=devnet`
+              : null,
+          }}
+          chain={view.completion.chain}
+          chainError={view.completion.chain.error}
+          simulated={view.completion.simulated}
+        />
+      ) : null}
+
       <ExtendedMystery slug={slug} view={view} />
 
       <p className="pb-4 text-center text-[11px] leading-relaxed text-sage/40">
         Fictional demo trail. Camera and location are supporting evidence reviewed by a person, never
-        cryptographic proof of presence. Rewards are valueless Devnet test credits.
+        cryptographic proof of presence. Rewards are valueless Solana Devnet test tokens.
       </p>
     </div>
   );

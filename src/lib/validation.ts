@@ -29,6 +29,7 @@ export interface CampaignInput {
   extInstoreClue: string;
   extAnswer: string;
   extHint: string;
+  extQuestion: string;
   onlineClues: CampaignClueInput[];
   instoreClues: CampaignClueInput[];
 }
@@ -55,6 +56,7 @@ const LIMITS = {
   hint: [8, 260],
   extClue: [8, 400],
   extAnswer: [1, 60],
+  extQuestion: [8, 200],
   clueTitle: [3, 90],
   clueBody: [8, 400],
   maxCluesPerKind: 5,
@@ -182,6 +184,7 @@ export function validateCampaignInput(raw: unknown): ValidationResult {
     extInstoreClue: text(input.extInstoreClue),
     extAnswer: text(input.extAnswer),
     extHint: text(input.extHint),
+    extQuestion: text(input.extQuestion),
     onlineClues: [],
     instoreClues: [],
   };
@@ -259,6 +262,15 @@ export function validateCampaignInput(raw: unknown): ValidationResult {
   }
   const extHintIssue = optionalLengthError(value.extHint, LIMITS.hint, "Extended hint");
   if (extHintIssue) errors.extHint = extHintIssue;
+  const extQuestionIssue = optionalLengthError(
+    value.extQuestion,
+    LIMITS.extQuestion,
+    "Extended question",
+  );
+  if (extQuestionIssue) errors.extQuestion = extQuestionIssue;
+  if (value.extAnswer && !value.extQuestion) {
+    errors.extQuestion = "Add the extended question players answer before adding its answer.";
+  }
 
   value.onlineClues = parseClues(input.onlineClues, "onlineClues", errors);
   value.instoreClues = parseClues(input.instoreClues, "instoreClues", errors);

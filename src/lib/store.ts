@@ -41,6 +41,8 @@ interface CampaignRow {
   ext_instore_clue: string;
   ext_answer: string;
   ext_hint: string;
+  ext_question: string;
+  chain_counter_account: string | null;
 }
 
 interface ClueRow {
@@ -118,6 +120,8 @@ function toCampaign(row: CampaignRow, clues: Clue[]): Campaign {
     extInstoreClue: row.ext_instore_clue,
     extAnswer: row.ext_answer,
     extHint: row.ext_hint,
+    extQuestion: row.ext_question,
+    chainCounterAccount: row.chain_counter_account,
     clues,
   };
 }
@@ -302,8 +306,8 @@ export function createCampaign(input: CampaignInput, merchantId: string): Campai
          target_object, target_object_hint, reward_amount, coupon_item, coupon_min_spend,
          coupon_valid_days, coupon_notes, status, submitted_at, created_at, updated_at,
          answer_question, answer, hint_1, hint_2,
-         ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint, ext_question
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id,
       merchantId,
@@ -332,6 +336,7 @@ export function createCampaign(input: CampaignInput, merchantId: string): Campai
       input.extInstoreClue,
       input.extAnswer,
       input.extHint,
+      input.extQuestion,
     );
 
     const insertClue = db.prepare(
@@ -419,7 +424,8 @@ export function updateCampaign(
            target_object = ?, target_object_hint = ?, reward_amount = ?, coupon_item = ?,
            coupon_min_spend = ?, coupon_valid_days = ?, coupon_notes = ?, updated_at = ?,
            answer_question = ?, answer = ?, hint_1 = ?, hint_2 = ?,
-           ext_social_clue = ?, ext_web_clue = ?, ext_instore_clue = ?, ext_answer = ?, ext_hint = ?
+           ext_social_clue = ?, ext_web_clue = ?, ext_instore_clue = ?, ext_answer = ?, ext_hint = ?,
+           ext_question = ?
        WHERE id = ?`,
     ).run(
       input.title,
@@ -445,6 +451,7 @@ export function updateCampaign(
       input.extInstoreClue,
       input.extAnswer,
       input.extHint,
+      input.extQuestion,
       id,
     );
     replaceClues(db, id, input);

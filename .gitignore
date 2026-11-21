@@ -18,6 +18,7 @@ id.json
 
 # Data / outputs
 .data/
+programs/*/target/
 *.sqlite
 *.sqlite-journal
 *.db

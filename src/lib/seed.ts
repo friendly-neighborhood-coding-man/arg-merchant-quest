@@ -48,6 +48,7 @@ interface SeedCampaign {
   extInstoreClue?: string;
   extAnswer?: string;
   extHint?: string;
+  extQuestion?: string;
   clues: SeedClue[];
 }
 
@@ -245,7 +246,8 @@ const CAMPAIGNS: SeedCampaign[] = [
     submittedDaysAgo: 4,
     reviewedDaysAgo: 3,
     reviewer: "operator.demo",
-    answerQuestion: "How many pours does the ninth cup's recipe call for?",
+    answerQuestion:
+      "The rule says one pour for every shelf above the grinder, then one more for the cup that was never poured. How many pours is that in total?",
     answer: "5",
     hint1:
       "The rule names two things to count: every shelf above the grinder, and one extra pour for the cup that was never poured.",
@@ -258,6 +260,8 @@ const CAMPAIGNS: SeedCampaign[] = [
       "The framed photo of the 1998 stall sits on the top shelf next to the cup: nine cups on the table, none in the roaster's hands. The letter names the two cups that never went home with a customer.",
     extAnswer: "11",
     extHint: "Nine cups on the stall. Two cups that never went home. The letter names them.",
+    extQuestion:
+      "The 1998 photo shows nine cups on the market stall, and the letter names two more cups that never went home with a customer. How many cups does the letter count in total?",
     clues: [
       {
         kind: "online",
@@ -310,8 +314,8 @@ export function seedDatabase(db: DatabaseSync) {
        coupon_valid_days, coupon_notes, status, operator_note, submitted_at, reviewed_at,
        reviewed_by, published_at, created_at, updated_at,
        answer_question, answer, hint_1, hint_2,
-       ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       ext_social_clue, ext_web_clue, ext_instore_clue, ext_answer, ext_hint, ext_question
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertClue = db.prepare(
     `INSERT INTO clues (id, campaign_id, kind, position, title, body, url)
@@ -378,6 +382,7 @@ export function seedDatabase(db: DatabaseSync) {
         campaign.extInstoreClue ?? "",
         campaign.extAnswer ?? "",
         campaign.extHint ?? "",
+        campaign.extQuestion ?? "",
       );
 
       let onlinePosition = 0;

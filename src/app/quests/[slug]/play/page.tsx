@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { QuestRun } from "@/components/quest-run";
+import { rewardDisplay } from "@/lib/chain/reward";
 import { getCampaignBySlug } from "@/lib/store";
 import { PLAYER_COOKIE, getQuestView } from "@/lib/quest-store";
 
@@ -28,6 +29,20 @@ export default async function QuestPlayPage({ params }: PageProps) {
   const view = getQuestView(playerId, campaign);
   if (!view) redirect(`/quests/${slug}`);
 
+  const display = await rewardDisplay();
+  const reward = display
+    ? {
+        credits: display.credits,
+        amount: display.tokenAmount,
+        symbol: display.symbol,
+        name: display.name,
+        mint: display.mint,
+        isCircleUsdc: display.isCircleUsdc,
+        conversionCopy: display.conversionCopy,
+        cluster: display.cluster,
+      }
+    : null;
+
   return (
     <div className="wrap max-w-3xl space-y-5 pt-6">
       <div className="flex items-center justify-between gap-3">
@@ -36,7 +51,7 @@ export default async function QuestPlayPage({ params }: PageProps) {
         </Link>
         <span className="font-mono text-[10px] tracking-wide text-sage/35">{campaign.slug}</span>
       </div>
-      <QuestRun view={view} />
+      <QuestRun view={view} reward={reward} />
     </div>
   );
 }

@@ -10,12 +10,12 @@
 - [x] Visitor selects the shop and solves an easy basic in-store finding mission. *(P0.2 — staged online → in-store trail, a server-checked counter answer, and an in-app evidence step.)*
 - [x] Optional hints appear at **3 and 5 minutes**; hint usage does not change the fixed reward. *(P0.2 — unlock time is derived from the session start on the server, not from a page refresh.)*
 - [x] Visitor uses **in-app camera**, explicitly permits location, and submits photo/time/location evidence. A limited verifier reports what was checked. *(P0.2 — the verifier is a human operator; camera, upload and a labelled simulation are supported, and location is optional.)*
-- [ ] One actual Devnet test-token reward transaction is initiated and shown with confirmed chain status and explorer link. *(P0.3 — P0.2 records the completion, reward amount and `payout_status = 'pending'`.)*
-- [ ] MagicBlock is **actually exercised** for a relevant feature, with transaction / execution evidence. *(P0.3.)*
+- [x] One actual Devnet test-token reward transaction is initiated and shown with confirmed chain status and explorer link. *(P0.3 — the visitor pastes a Devnet address after verification; the treasury sends 1.00 tUSDC, confirms it, and the app stores `paid` plus the signature and before/after balance. The asset is a valueless demo token, clearly labelled, not Circle USDC.)*
+- [x] MagicBlock is **actually exercised** for a relevant feature, with transaction / execution evidence. *(P0.3 — per-campaign completion counter delegated to an Ephemeral Rollup, incremented on the ER, committed back to Devnet; program, counter address and signatures are shown in the UI and returned by the API.)*
 - [x] Optional SNS + website + in-store ARG resolves to an achievement and conditional secret-menu coupon. *(P0.2 — social-style clue, merchant-site clue, in-store observation and a final answer; sets `coupon_eligible`. Coupon issuance itself is P0.4.)*
 - [ ] Staff opens the issued coupon and completes a redemption action. *(P0.4.)*
 - [ ] Merchant dashboard reflects visit, reward transaction and coupon result. *(Needs P0.3/P0.4 data.)*
-- [ ] Replaying the full walkthrough requires no developer-only database patching or pre-recorded 'payment succeeded' screen. *(P0.2 needs no patching; the reward leg is still absent.)*
+- [x] Replaying the full walkthrough requires no developer-only database patching or pre-recorded 'payment succeeded' screen. *(P0.3 — the reward is a real transfer from the demo treasury; `node scripts/chain/app-e2e.mjs` replays the whole journey through the app's own API.)*
 
 ## P1 — make it feel like a product
 

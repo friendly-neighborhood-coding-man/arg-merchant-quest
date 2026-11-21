@@ -1,0 +1,22 @@
+[package]
+name = "completion-counter"
+version = "0.1.0"
+edition = "2021"
+description = "Campaign-scoped verified-completion counter for the ARG Merchant Quest demo (MagicBlock Ephemeral Rollups)."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+solana-program = "3"
+solana-system-interface = { version = "3", features = ["bincode"] }
+# MagicBlock's intent builder: the current magic program only accepts the
+# serialized intent-bundle encoding, so the commit is scheduled in-program.
+ephemeral-rollups-sdk = "0.20"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = "symbols"

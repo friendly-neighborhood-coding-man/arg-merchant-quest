@@ -32,6 +32,7 @@ interface Draft {
   extInstoreClue: string;
   extAnswer: string;
   extHint: string;
+  extQuestion: string;
   rewardAmount: string;
   couponItem: string;
   couponMinSpend: string;
@@ -61,6 +62,7 @@ const INITIAL: Draft = {
   extInstoreClue: "",
   extAnswer: "",
   extHint: "",
+  extQuestion: "",
   rewardAmount: "100",
   couponItem: "",
   couponMinSpend: "15000",
@@ -97,6 +99,7 @@ function draftFromCampaign(campaign: Campaign): Draft {
     extInstoreClue: campaign.extInstoreClue,
     extAnswer: campaign.extAnswer,
     extHint: campaign.extHint,
+    extQuestion: campaign.extQuestion,
     rewardAmount: String(campaign.rewardAmount),
     couponItem: campaign.couponItem,
     couponMinSpend: String(campaign.couponMinSpend),
@@ -737,6 +740,21 @@ export function CampaignForm({
               onChange={(event) => set("extInstoreClue", event.target.value)}
               placeholder="The framed photo of the 1998 stall: nine cups on the table."
               maxLength={400}
+            />
+          </Field>
+          <Field
+            label="Extended question"
+            htmlFor="extQuestion"
+            error={errors.extQuestion}
+            hint="Shown once the player has opened all three extended clues."
+          >
+            <input
+              id="extQuestion"
+              className={inputClass(Boolean(errors.extQuestion))}
+              value={draft.extQuestion}
+              onChange={(event) => set("extQuestion", event.target.value)}
+              placeholder="How many cups does the letter count in total?"
+              maxLength={200}
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">

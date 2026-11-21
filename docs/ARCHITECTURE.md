@@ -45,6 +45,34 @@ OPERATOR UI --> /api/evidence/[id]/review (approve / reject with note)
 - Every submission starts as `pending`. Approval writes the completion row inside one transaction; rejection leaves the session open for a new photo.
 - Verification is a human operator in this build. There is no image recognition, and the simulation capture is labelled on the image and in the queue.
 
+## P0.3 chain layer (as built)
+
+```text
+OPERATOR APPROVE --> reviewEvidence() --> verifyCompletionOnChain(campaign, completion)
+                                              |
+                    programs/completion-counter  (native Rust, no Anchor)
+                    counter PDA = ["counter", sha256(campaign_id)]
+                      |  create (once)  -> base layer
+                      |  delegate        -> base layer, CPI to the delegation program
+                      |  increment       -> sent to the ER endpoint the router returns
+                      |  commit          -> ER instruction 4, MagicIntentBundleBuilder CPI
+                      v
+explorer-visible program / counter / delegate / increment / commit signatures
+
+PLAYER CLAIM --> POST /api/quests/[slug]/reward { wallet }
+                    |
+            reward-service.ts -> reward.ts
+                    |  create recipient ATA if missing (idempotent)
+                    |  SPL transfer from the treasury, fixed 1.000000 tUSDC
+                    v
+completions.payout_status = paid | failed, signature, before/after balances
+```
+
+- The counter belongs to the demo program; the ER state is committed back to Devnet, so the committed value is readable with a plain `getAccountInfo`.
+- The ER step runs after the operator's approval, not on the player's say-so; it records that this app verified a completion, nothing more.
+- The payout is separate and player-triggered: pasting an address is enough, the treasury pays the fee and creates the token account. This is demo custody, not a production wallet flow.
+- Chain failures never fake success: the completion stores `payout_status = 'failed'` with the RPC error and the UI shows it.
+
 ## Important distinctions
 
 Knowing the clue answer is not proof that the user visited the referenced social profile. GPS+photo is limited evidence, not proof of continuous dwell. A confirmed Solana transaction does not prove app-level exactly-once reward. Demo coupons must be clearly nonredeemable in real businesses.

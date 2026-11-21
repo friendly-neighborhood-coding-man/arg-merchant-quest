@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { jsonError } from "@/lib/quest-http";
 import { reviewEvidence } from "@/lib/quest-store";
+import { verifyCompletionOnChain } from "@/lib/reward-service";
 import { validateEvidenceReviewInput } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(
   request: Request,
@@ -23,5 +25,18 @@ export async function POST(
 
   const result = reviewEvidence(id, parsed.decision, parsed.note);
   if (!result.ok) return jsonError(result.error, result.status);
-  return NextResponse.json({ ok: true });
+
+  // Approval creates the completion; a verified completion then updates the
+  // campaign's counter on a MagicBlock Ephemeral Rollup. A chain failure is
+  // recorded on the completion instead of silently passing as success.
+  let chain: { ok: boolean; error: string | null } | null = null;
+  if (result.completionId) {
+    chain = await verifyCompletionOnChain(result.completionId);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    completionId: result.completionId,
+    chain,
+  });
 }

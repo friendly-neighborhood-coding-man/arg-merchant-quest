@@ -43,6 +43,11 @@ export interface Campaign {
   extInstoreClue: string;
   extAnswer: string;
   extHint: string;
+  /** The extended mystery's question. Optional: seeded campaigns fall back to
+   * a generic prompt when it is empty. */
+  extQuestion: string;
+  /** Completion-counter account on Solana, once this campaign has one. */
+  chainCounterAccount: string | null;
   status: CampaignStatus;
   operatorNote: string | null;
   /** The most recent rejection reason. Survives a resubmission so the operator
@@ -85,3 +90,9 @@ export type QuestStage =
 
 export type EvidenceKind = "camera" | "upload" | "simulation";
 export type EvidenceStatus = "pending" | "approved" | "rejected";
+
+/** P0.3 — real devnet payout state for a verified completion. */
+export type PayoutStatus = "pending" | "processing" | "paid" | "failed";
+
+/** P0.3 — MagicBlock counter lifecycle for a verified completion. */
+export type ChainStatus = "none" | "incrementing" | "committed" | "failed";

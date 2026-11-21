@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   ext_web_clue TEXT NOT NULL DEFAULT '',
   ext_instore_clue TEXT NOT NULL DEFAULT '',
   ext_answer TEXT NOT NULL DEFAULT '',
-  ext_hint TEXT NOT NULL DEFAULT ''
+  ext_hint TEXT NOT NULL DEFAULT '',
+  ext_question TEXT NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS campaigns_status_idx ON campaigns (status);
@@ -130,6 +131,28 @@ CREATE TABLE IF NOT EXISTS quest_completions (
   verified_at TEXT NOT NULL,
   payout_status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL,
+  payout_wallet TEXT,
+  payout_mint TEXT,
+  payout_amount_base_units INTEGER,
+  payout_signature TEXT,
+  payout_error TEXT,
+  payout_recipient_before INTEGER,
+  payout_recipient_after INTEGER,
+  payout_recipient_token_account TEXT,
+  payout_claimed_at TEXT,
+  payout_confirmed_at TEXT,
+  chain_status TEXT,
+  chain_counter_account TEXT,
+  chain_program_id TEXT,
+  chain_create_signature TEXT,
+  chain_delegate_signature TEXT,
+  chain_increment_signature TEXT,
+  chain_commit_signature TEXT,
+  chain_counter_value INTEGER,
+  chain_committed_value INTEGER,
+  chain_er_endpoint TEXT,
+  chain_updated_at TEXT,
+  chain_error TEXT,
   UNIQUE (session_id)
 );
 
@@ -212,6 +235,47 @@ const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: string }> =
     column: "ext_hint",
     ddl: "ALTER TABLE campaigns ADD COLUMN ext_hint TEXT NOT NULL DEFAULT ''",
   },
+  // P0.3 — the shared completion-counter account for this campaign, plus the
+  // extended-mystery question (previously hard-coded in the player view).
+  {
+    table: "campaigns",
+    column: "ext_question",
+    ddl: "ALTER TABLE campaigns ADD COLUMN ext_question TEXT NOT NULL DEFAULT ''",
+  },
+  {
+    table: "campaigns",
+    column: "chain_counter_account",
+    ddl: "ALTER TABLE campaigns ADD COLUMN chain_counter_account TEXT",
+  },
+  // P0.3 — real Devnet payout and MagicBlock execution evidence.
+  ...[
+    ["payout_wallet", "TEXT"],
+    ["payout_mint", "TEXT"],
+    ["payout_amount_base_units", "INTEGER"],
+    ["payout_signature", "TEXT"],
+    ["payout_error", "TEXT"],
+    ["payout_recipient_before", "INTEGER"],
+    ["payout_recipient_after", "INTEGER"],
+    ["payout_recipient_token_account", "TEXT"],
+    ["payout_claimed_at", "TEXT"],
+    ["payout_confirmed_at", "TEXT"],
+    ["chain_status", "TEXT"],
+    ["chain_counter_account", "TEXT"],
+    ["chain_program_id", "TEXT"],
+    ["chain_create_signature", "TEXT"],
+    ["chain_delegate_signature", "TEXT"],
+    ["chain_increment_signature", "TEXT"],
+    ["chain_commit_signature", "TEXT"],
+    ["chain_counter_value", "INTEGER"],
+    ["chain_committed_value", "INTEGER"],
+    ["chain_er_endpoint", "TEXT"],
+    ["chain_updated_at", "TEXT"],
+    ["chain_error", "TEXT"],
+  ].map(([column, type]) => ({
+    table: "quest_completions",
+    column,
+    ddl: `ALTER TABLE quest_completions ADD COLUMN ${column} ${type}`,
+  })),
 ];
 
 function migrate(db: DatabaseSync) {

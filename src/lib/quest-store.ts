@@ -100,6 +100,30 @@ export interface Completion {
   verifiedBy: string;
   verifiedAt: string;
   payoutStatus: string;
+  /** P0.3 devnet payout. */
+  payoutWallet: string | null;
+  payoutMint: string | null;
+  payoutAmountBaseUnits: number | null;
+  payoutSignature: string | null;
+  payoutError: string | null;
+  payoutRecipientBefore: number | null;
+  payoutRecipientAfter: number | null;
+  payoutRecipientTokenAccount: string | null;
+  payoutClaimedAt: string | null;
+  payoutConfirmedAt: string | null;
+  /** P0.3 MagicBlock completion-counter evidence. */
+  chainStatus: string | null;
+  chainCounterAccount: string | null;
+  chainProgramId: string | null;
+  chainCreateSignature: string | null;
+  chainDelegateSignature: string | null;
+  chainIncrementSignature: string | null;
+  chainCommitSignature: string | null;
+  chainCounterValue: number | null;
+  chainCommittedValue: number | null;
+  chainErEndpoint: string | null;
+  chainUpdatedAt: string | null;
+  chainError: string | null;
 }
 
 interface SessionRow {
@@ -153,6 +177,28 @@ interface CompletionRow {
   verified_by: string;
   verified_at: string;
   payout_status: string;
+  payout_wallet: string | null;
+  payout_mint: string | null;
+  payout_amount_base_units: number | null;
+  payout_signature: string | null;
+  payout_error: string | null;
+  payout_recipient_before: number | null;
+  payout_recipient_after: number | null;
+  payout_recipient_token_account: string | null;
+  payout_claimed_at: string | null;
+  payout_confirmed_at: string | null;
+  chain_status: string | null;
+  chain_counter_account: string | null;
+  chain_program_id: string | null;
+  chain_create_signature: string | null;
+  chain_delegate_signature: string | null;
+  chain_increment_signature: string | null;
+  chain_commit_signature: string | null;
+  chain_counter_value: number | null;
+  chain_committed_value: number | null;
+  chain_er_endpoint: string | null;
+  chain_updated_at: string | null;
+  chain_error: string | null;
 }
 
 export type ActionResult =
@@ -220,6 +266,28 @@ function toCompletion(row: CompletionRow): Completion {
     verifiedBy: row.verified_by,
     verifiedAt: row.verified_at,
     payoutStatus: row.payout_status,
+    payoutWallet: row.payout_wallet,
+    payoutMint: row.payout_mint,
+    payoutAmountBaseUnits: row.payout_amount_base_units,
+    payoutSignature: row.payout_signature,
+    payoutError: row.payout_error,
+    payoutRecipientBefore: row.payout_recipient_before,
+    payoutRecipientAfter: row.payout_recipient_after,
+    payoutRecipientTokenAccount: row.payout_recipient_token_account,
+    payoutClaimedAt: row.payout_claimed_at,
+    payoutConfirmedAt: row.payout_confirmed_at,
+    chainStatus: row.chain_status,
+    chainCounterAccount: row.chain_counter_account,
+    chainProgramId: row.chain_program_id,
+    chainCreateSignature: row.chain_create_signature,
+    chainDelegateSignature: row.chain_delegate_signature,
+    chainIncrementSignature: row.chain_increment_signature,
+    chainCommitSignature: row.chain_commit_signature,
+    chainCounterValue: row.chain_counter_value,
+    chainCommittedValue: row.chain_committed_value,
+    chainErEndpoint: row.chain_er_endpoint,
+    chainUpdatedAt: row.chain_updated_at,
+    chainError: row.chain_error,
   };
 }
 
@@ -307,7 +375,10 @@ export function touchSession(id: string) {
 export function elapsedSeconds(session: QuestSession): number {
   const started = new Date(session.startedAt).getTime();
   if (Number.isNaN(started)) return 0;
-  return Math.max(0, Math.floor((Date.now() - started) / 1000));
+  // The trail clock stops when the operator verifies the completion.
+  const finished = session.completedAt ? new Date(session.completedAt).getTime() : null;
+  const now = finished && !Number.isNaN(finished) ? Math.min(Date.now(), finished) : Date.now();
+  return Math.max(0, Math.floor((now - started) / 1000));
 }
 
 export function advanceQuest(
@@ -523,7 +594,7 @@ export function reviewEvidence(
   decision: "approve" | "reject",
   note: string,
   reviewer = "operator.demo",
-): ActionResult {
+): { ok: true; completionId: string | null } | { ok: false; status: number; error: string } {
   const db = getDb();
   const evidence = getEvidenceById(evidenceId);
   if (!evidence) return { ok: false, status: 404, error: "Evidence not found." };
@@ -543,9 +614,10 @@ export function reviewEvidence(
       `UPDATE evidence SET status = 'rejected', review_note = ?, reviewed_by = ?, reviewed_at = ?
        WHERE id = ?`,
     ).run(note || null, reviewer, now, evidenceId);
-    return { ok: true };
+    return { ok: true, completionId: null };
   }
 
+  const completionId = `cmpl_${randomUUID()}`;
   db.exec("BEGIN");
   try {
     db.prepare(
@@ -564,7 +636,7 @@ export function reviewEvidence(
          verified_at, payout_status, created_at
        ) VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, 'pending', ?)`,
     ).run(
-      `cmpl_${randomUUID()}`,
+      completionId,
       evidence.sessionId,
       evidence.campaignId,
       evidence.playerId,
@@ -580,7 +652,7 @@ export function reviewEvidence(
     db.exec("ROLLBACK");
     throw error;
   }
-  return { ok: true };
+  return { ok: true, completionId };
 }
 
 export function getCompletion(sessionId: string): Completion | null {
@@ -709,6 +781,32 @@ export interface QuestView {
     verificationMethod: string;
     payoutStatus: string;
     simulated: boolean;
+    payout: {
+      wallet: string | null;
+      mint: string | null;
+      amountBaseUnits: number | null;
+      signature: string | null;
+      error: string | null;
+      recipientBefore: number | null;
+      recipientAfter: number | null;
+      recipientTokenAccount: string | null;
+      claimedAt: string | null;
+      confirmedAt: string | null;
+    };
+    chain: {
+      status: string | null;
+      counterAccount: string | null;
+      programId: string | null;
+      createSignature: string | null;
+      delegateSignature: string | null;
+      incrementSignature: string | null;
+      commitSignature: string | null;
+      counterValue: number | null;
+      committedValue: number | null;
+      erEndpoint: string | null;
+      updatedAt: string | null;
+      error: string | null;
+    };
   } | null;
   extended: {
     available: boolean;
@@ -825,6 +923,32 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
           verificationMethod: completion.verificationMethod,
           payoutStatus: completion.payoutStatus,
           simulated: completion.verificationMethod === "operator_review_simulation",
+          payout: {
+            wallet: completion.payoutWallet,
+            mint: completion.payoutMint,
+            amountBaseUnits: completion.payoutAmountBaseUnits,
+            signature: completion.payoutSignature,
+            error: completion.payoutError,
+            recipientBefore: completion.payoutRecipientBefore,
+            recipientAfter: completion.payoutRecipientAfter,
+            recipientTokenAccount: completion.payoutRecipientTokenAccount,
+            claimedAt: completion.payoutClaimedAt,
+            confirmedAt: completion.payoutConfirmedAt,
+          },
+          chain: {
+            status: completion.chainStatus,
+            counterAccount: completion.chainCounterAccount,
+            programId: completion.chainProgramId,
+            createSignature: completion.chainCreateSignature,
+            delegateSignature: completion.chainDelegateSignature,
+            incrementSignature: completion.chainIncrementSignature,
+            commitSignature: completion.chainCommitSignature,
+            counterValue: completion.chainCounterValue,
+            committedValue: completion.chainCommittedValue,
+            erEndpoint: completion.chainErEndpoint,
+            updatedAt: completion.chainUpdatedAt,
+            error: completion.chainError,
+          },
         }
       : null,
     extended: {
@@ -833,7 +957,8 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
       totalSteps: 3,
       attempts: session.extendedAttempts,
       solved: Boolean(session.extendedSolvedAt),
-      question: "How many cups were there in the beginning?",
+      question:
+        campaign.extQuestion.trim() || "What number does the second question's trail point at?",
       clues: extClues.slice(0, extStep),
       nextTitle: extStep < 3 ? (extTitles[extStep] ?? null) : null,
       hint: session.extendedSolvedAt || extStep >= 3 ? campaign.extHint || EXT_HINT_FALLBACK : null,
@@ -908,14 +1033,20 @@ export interface PlayerAchievement {
 export function listPlayerAchievements(playerId: string): PlayerAchievement[] {
   const rows = getDb()
     .prepare(
-      `SELECT qc.*, c.title AS campaign_title, c.slug AS campaign_slug
+      `SELECT qc.*, c.title AS campaign_title, c.slug AS campaign_slug,
+              s.extended_solved_at AS extended_solved_at
        FROM quest_completions qc
        JOIN campaigns c ON c.id = qc.campaign_id
+       JOIN quest_sessions s ON s.id = qc.session_id
        WHERE qc.player_id = ?
        ORDER BY qc.verified_at DESC`,
     )
     .all(playerId) as unknown as Array<
-    CompletionRow & { campaign_title: string; campaign_slug: string }
+    CompletionRow & {
+      campaign_title: string;
+      campaign_slug: string;
+      extended_solved_at: string | null;
+    }
   >;
 
   const achievements: PlayerAchievement[] = [];
@@ -936,7 +1067,9 @@ export function listPlayerAchievements(playerId: string): PlayerAchievement[] {
         code: "extended_mystery",
         name: `${row.campaign_title} — the second question`,
         detail: "You solved the optional extended mystery.",
-        earnedAt: row.verified_at,
+        // The achievement is earned when the answer was accepted, not when the
+        // basic completion was verified earlier.
+        earnedAt: row.extended_solved_at ?? row.verified_at,
         couponEligible: true,
       });
     }
@@ -1033,4 +1166,118 @@ export function questStats() {
 
 export function campaignForSession(session: QuestSession): Campaign | null {
   return getCampaignById(session.campaignId);
+}
+
+export function getCompletionById(id: string): Completion | null {
+  const row = getDb().prepare("SELECT * FROM quest_completions WHERE id = ?").get(id) as unknown as
+    | CompletionRow
+    | undefined;
+  return row ? toCompletion(row) : null;
+}
+
+export function setCampaignCounterAccount(campaignId: string, account: string): void {
+  getDb()
+    .prepare("UPDATE campaigns SET chain_counter_account = ? WHERE id = ?")
+    .run(account, campaignId);
+}
+
+export interface ChainEvidenceInput {
+  status: "incrementing" | "committed" | "failed";
+  counterAccount: string;
+  programId: string;
+  createSignature: string | null;
+  delegateSignature: string | null;
+  incrementSignature: string | null;
+  commitSignature: string | null;
+  counterValue: number | null;
+  committedValue: number | null;
+  erEndpoint: string;
+  error: string | null;
+}
+
+export function saveChainEvidence(completionId: string, evidence: ChainEvidenceInput): void {
+  getDb()
+    .prepare(
+      `UPDATE quest_completions
+       SET chain_status = ?, chain_counter_account = ?, chain_program_id = ?,
+           chain_create_signature = ?, chain_delegate_signature = ?,
+           chain_increment_signature = ?, chain_commit_signature = ?,
+           chain_counter_value = ?, chain_committed_value = ?,
+           chain_er_endpoint = ?, chain_updated_at = ?, chain_error = ?
+       WHERE id = ?`,
+    )
+    .run(
+      evidence.status,
+      evidence.counterAccount,
+      evidence.programId,
+      evidence.createSignature,
+      evidence.delegateSignature,
+      evidence.incrementSignature,
+      evidence.commitSignature,
+      evidence.counterValue,
+      evidence.committedValue,
+      evidence.erEndpoint,
+      new Date().toISOString(),
+      evidence.error,
+      completionId,
+    );
+}
+
+export function beginPayout(
+  completionId: string,
+  wallet: string,
+  mint: string,
+  amountBaseUnits: number,
+): void {
+  getDb()
+    .prepare(
+      `UPDATE quest_completions
+       SET payout_status = 'processing', payout_wallet = ?, payout_mint = ?,
+           payout_amount_base_units = ?, payout_error = NULL, payout_claimed_at = ?
+       WHERE id = ?`,
+    )
+    .run(wallet, mint, amountBaseUnits, new Date().toISOString(), completionId);
+}
+
+export interface PayoutReceiptInput {
+  signature: string;
+  mint: string;
+  amountBaseUnits: number;
+  recipient: string;
+  recipientTokenAccount: string;
+  recipientBeforeBaseUnits: number;
+  recipientAfterBaseUnits: number;
+}
+
+export function completePayout(completionId: string, receipt: PayoutReceiptInput): void {
+  getDb()
+    .prepare(
+      `UPDATE quest_completions
+       SET payout_status = 'paid', payout_signature = ?, payout_mint = ?,
+           payout_amount_base_units = ?, payout_wallet = ?,
+           payout_recipient_token_account = ?, payout_recipient_before = ?,
+           payout_recipient_after = ?, payout_confirmed_at = ?, payout_error = NULL
+       WHERE id = ?`,
+    )
+    .run(
+      receipt.signature,
+      receipt.mint,
+      receipt.amountBaseUnits,
+      receipt.recipient,
+      receipt.recipientTokenAccount,
+      receipt.recipientBeforeBaseUnits,
+      receipt.recipientAfterBaseUnits,
+      new Date().toISOString(),
+      completionId,
+    );
+}
+
+export function failPayout(completionId: string, message: string, wallet?: string): void {
+  getDb()
+    .prepare(
+      `UPDATE quest_completions
+       SET payout_status = 'failed', payout_error = ?, payout_wallet = COALESCE(?, payout_wallet)
+       WHERE id = ?`,
+    )
+    .run(message.slice(0, 500), wallet ?? null, completionId);
 }
