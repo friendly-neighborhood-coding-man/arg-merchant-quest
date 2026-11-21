@@ -7,6 +7,7 @@ import type { EvidenceKind } from "@/lib/types";
 import type { QuestClueView, QuestView } from "@/lib/quest-store";
 import { formatDateTime } from "@/lib/format";
 import { RewardClaim, type RewardPanelData } from "./reward-claim";
+import { CouponTicket } from "./coupon-ticket";
 
 const STEPS = ["Online trail", "In the shop", "The question", "Evidence", "Verified"];
 
@@ -625,8 +626,8 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
         <div className="mt-4 rounded-xl border border-mint/40 bg-mint/10 px-4 py-3">
           <p className="text-[13px] font-semibold text-mint">The second achievement is yours</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mint/85">
-            You solved The Ninth Cup&apos;s extended mystery. Coupon eligibility is unlocked on your
-            completion record; the coupon itself is issued in P0.4.
+            You solved {view.campaign.title}&apos;s extended mystery. Your demo coupon is issued
+            below — show its code to staff at {view.campaign.shopName}.
           </p>
         </div>
       ) : null}
@@ -980,15 +981,23 @@ export function QuestRun({
               <dt className="mono-label text-[9px]">Fixed reward</dt>
               <dd className="mt-1 text-amber">{view.completion.rewardAmount} Devnet test credits</dd>
               <dd className="text-[11px] text-sage/45">
-                Claimable below as a real Devnet token transfer.
+                {reward
+                  ? "Claimable below as a real Devnet token transfer."
+                  : "No payout is configured on this server."}
               </dd>
             </div>
             <div>
-              <dt className="mono-label text-[9px]">Coupon eligibility</dt>
+              <dt className="mono-label text-[9px]">Demo coupon</dt>
               <dd className="mt-1 text-white/85">
-                {view.completion.couponEligible ? "Unlocked" : "Locked — solve the second question"}
+                {view.coupon
+                  ? "Issued below"
+                  : view.completion.couponEligible
+                    ? "Unlocked"
+                    : "Locked — solve the second question"}
               </dd>
-              <dd className="text-[11px] text-sage/45">Issuance is P0.4.</dd>
+              <dd className="text-[11px] text-sage/45">
+                One fictional secret-menu entitlement per completion.
+              </dd>
             </div>
             <div>
               <dt className="mono-label text-[9px]">Verified</dt>
@@ -1024,7 +1033,21 @@ export function QuestRun({
         </section>
       ) : null}
 
-      {view.completion && reward ? (
+      <ExtendedMystery slug={slug} view={view} />
+
+      {view.coupon ? (
+        <CouponTicket coupon={view.coupon} />
+      ) : view.completion?.extendedSolved ? (
+        <section className="panel border-amber/30 p-5">
+          <p className="mono-label text-amber/80">Demo coupon</p>
+          <p className="mt-2 text-[13px] leading-relaxed text-sage/70">
+            You solved the second question, but this deployment could not issue the demo coupon.
+            Your verified completion and achievement are unaffected.
+          </p>
+        </section>
+      ) : null}
+
+      {view.completion ? (
         <RewardClaim
           slug={slug}
           reward={reward}
@@ -1050,8 +1073,6 @@ export function QuestRun({
           simulated={view.completion.simulated}
         />
       ) : null}
-
-      <ExtendedMystery slug={slug} view={view} />
 
       <p className="pb-4 text-center text-[11px] leading-relaxed text-sage/40">
         Fictional demo trail. Camera and location are supporting evidence reviewed by a person, never

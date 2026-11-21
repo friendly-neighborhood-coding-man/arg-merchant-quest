@@ -1,6 +1,6 @@
 # ARG Merchant Quest
 
-> **Status: P0.3 delivered — real Devnet payout and real MagicBlock execution.** A published campaign can be started, walked as a staged online → in-store trail, solved at the counter, evidenced with an in-app camera (or upload), reviewed by a human operator, and completed. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana, and after verification the visitor can claim a **real SPL transfer on Devnet** to their own wallet. An optional extended mystery awards a second achievement and coupon eligibility. Coupon issuance/redemption is still P0.4; coupon copy stays terms-only.
+> **Status: P0.4 delivered — the complete journey works end to end.** A merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. Solving the optional extended mystery issues a **demo secret-menu coupon**, which staff look up and redeem once at `/staff`, and `/merchant` reports the verified completions, payouts and coupon lifecycle. Everything is a fictional Devnet demonstration.
 
 A real-world ARG advertising experience powered by Solana and MagicBlock. Merchants publish clue-driven campaigns; visitors discover approved online/in-store clues, solve a counter question, photograph the target object, and (later) earn a fixed visit reward plus a merchant-specific secret-menu coupon.
 
@@ -53,13 +53,33 @@ The committed code runs without any of this: if no treasury keypair, mint or pro
 # needs Rust + Solana CLI (cargo build-sbf) and a small amount of Devnet SOL
 npm run chain:build        # compiles programs/completion-counter to .data/chain
 npm run chain:setup        # treasury wallet, tUSDC mint, program deploy, .data/chain/*.json
-npm run chain:state        # prints the current on-chain state
+npm run chain:state        # read-only: addresses, balances, program, campaign counters
 ARG_SOLANA_RPC_URL=https://rpc.magicblock.app/devnet \
   npx --yes tsx@4 scripts/chain/selftest.ts   # delegate → ER increment → commit → real transfer
 node scripts/chain/app-e2e.mjs               # the same journey through the app's HTTP API
 ```
 
-Keys, program keypairs and chain state live under the gitignored `.data/` directory and are never committed.
+Keys, program keypairs and chain state live under the gitignored `.data/` directory and are never committed. `chain:state` never prints a secret key and never writes anything.
+
+### Treasury backup and restoration
+
+The demo treasury is one hot wallet that pays every reward. It is acceptable for a valueless Devnet demonstration and unacceptable for real funds.
+
+- **Backup.** The keypair is the JSON file at `.data/wallets/treasury.json` (or whatever `ARG_TREASURY_KEYPAIR` points to). Copy it into your own password manager or encrypted secret store, then confirm the public address with `npm run chain:state`. Never paste the secret into a chat, commit it, or put it in a build artifact or screenshot.
+- **Restore on a new machine.** Put the backed-up file outside the repository, export `ARG_TREASURY_KEYPAIR=/secure/path/treasury.json`, and also restore the public chain configuration if it is not read from `.data/`: `ARG_COUNTER_PROGRAM_ID=8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C` and `ARG_REWARD_MINT=61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1`. Run `npm run chain:state` — it should print the same treasury address, the program as executable, and the mint with its treasury balance. Do **not** regenerate the treasury, create a new mint or redeploy the program just because local files are missing.
+- **If the treasury is genuinely lost**, record `NEEDS_OPERATOR_TREASURY_RESTORE`. Payouts and coupons stay separate: campaign play, evidence review, coupon issuance, staff redemption and the merchant dashboard all keep working without a treasury, while the reward card explains that payouts are unconfigured. A new treasury needs new Devnet SOL and a fresh mint, and would change the published demo addresses.
+
+### Where the ER transactions are verified
+
+The Magic Router may delegate a campaign counter to `devnet-as`, `devnet-us` or `devnet-eu` regardless of the example `ARG_MAGICBLOCK_ER_RPC_URL`, so the app records the endpoint it actually used. Ephemeral Rollup transactions do not exist on the base layer; a normal `explorer.solana.com/...?cluster=devnet` link for them would show nothing. The completion panel links the **ER increment** and **ER commit** to `/chain/er/<signature>?endpoint=…`, which queries that exact ER's `getTransaction` and shows the slot, fee, accounts and instructions. The durable evidence is the committed counter value, read from the base layer and linked on ordinary Solana Explorer.
+
+## What P0.4 adds
+
+- **Demo coupon issuance.** Solving the optional extended mystery issues exactly one coupon for that verified completion. A unique code, merchant/shop identity, secret-menu item, minimum-spend condition, issue time, expiry and status are stored in SQLite. The conditions are copied from the campaign at issue time, so a later campaign edit cannot rewrite an issued coupon. **Payout success is not required** — the reward and the coupon are separate features.
+- **Player coupon experience.** The coupon appears immediately below the extended mystery as a phone-sized ticket: code, merchant, item, minimum purchase, validity, expiry, status and how to show it to staff. `/quests#coupons` keeps every coupon after a refresh or a return visit.
+- **Staff redemption.** `/staff` looks up a code, shows the same ticket and the campaign's real terms, requires the staff member to explicitly confirm that the fictional purchase condition was met for the demonstration, and records the timestamp and demo staff identity. The single-use state change is one conditional `UPDATE`, so a redeemed, expired or unknown code cannot be redeemed again. No payment is processed.
+- **Merchant activity.** `/merchant` adds database-derived counts for verified demo completions, payouts paid/pending/failed, extended ARG solves, coupons issued and coupons redeemed, per campaign and in total, plus a recent-activity feed. The labels stay honest: no revenue, real purchases, foot traffic or conversion-rate claims.
+- **P0.3 corrections.** ER increment/commit now link to a real ER RPC verification page instead of a misleading base-layer Explorer transaction; `npm run chain:state` is a working read-only diagnostic; unconfigured payout and counter states are explicit; payout failures always carry useful text; the balance is labelled as the wallet's current balance; the docs cover treasury backup and the Magic Router's ability to select a different ER.
 
 ## Repository layout
 
@@ -96,8 +116,11 @@ No external services, accounts, API keys or credentials are required for P0.2.
 5. Enable the camera and capture, or upload, or use the labelled demo simulation. Optionally share location. Submit.
 6. `/operator/evidence` → review the photo, compare it with the private target description, **Approve**. The completion is written.
 7. Back on `/quests/the-ninth-cup/play`: verified state, stopped clock, fixed reward, achievement, coupon eligibility locked. On approval the app also delegated/incremented/committed the campaign counter on MagicBlock (see the “MagicBlock · campaign completion counter” panel).
-8. Paste a Devnet address in **Reward · Solana Devnet** and claim. The transfer is sent, confirmed and shown with the signature, the amount and the recipient's new balance.
-9. Scroll to **the second question**, open its three parts, answer `11` (nine on the stall + the ninth + the eleventh). Coupon eligibility unlocks and the second achievement appears on `/quests#achievements`.
+8. Paste a Devnet address in **Reward · Solana Devnet** and claim. The transfer is sent, confirmed and shown with the signature, the amount and the recipient's new balance. The ER increment/commit links open the real Ephemeral Rollup transaction check.
+9. Scroll to **the second question**, open its three parts, answer `11` (nine on the stall + the ninth + the eleventh). The second achievement appears on `/quests#achievements` and a **demo secret-menu coupon** is issued immediately below the question: code, minimum spend, validity, expiry and status.
+10. Open `/staff`, enter the coupon code, read its terms, tick the confirmation that the fictional purchase condition was met, and **Redeem this demo coupon**. A second attempt with the same code is refused as already redeemed.
+11. Open `/merchant` → **What your trails produced**. The verified completion, payout, extended solve, issued coupon and redeemed coupon are counted for *The Ninth Cup*, with the redemption in the recent-activity feed.
+12. Return to `/quests#coupons`: the same coupon is still there, now marked redeemed. Refreshing or restarting the app does not lose it.
 
 To see the 3/5-minute hints without waiting, start a quest and then shift that session's `started_at` back in the database (for example with a short `node:sqlite` script) — the server recomputes availability from that timestamp.
 
@@ -127,7 +150,10 @@ To see the 3/5-minute hints without waiting, start a quest and then shift that s
 - **The chain does not verify the player or the photo.** The operator remains the verification method; the MagicBlock counter records that *this app* verified a completion, and the SPL transfer records that the treasury paid an address. Neither proves physical presence or prevents the same visitor from claiming twice with a new browser session.
 - **The reward asset is a valueless demo token (tUSDC), not Circle USDC**, because the Circle Devnet faucet could not be used here. It is labelled as such everywhere.
 - The completion counter is a single-campaign PDA with no access control beyond the program owner and no upgrade authority rotation; it is a demonstration of the ER lifecycle, not a production counter.
-- Coupon issuance/redemption is not implemented; completions record coupon *eligibility* only.
+- **Coupons are fictional demo entitlements.** They have no cash value, are not real offers and cannot be redeemed at a real business. There is no POS integration and no real payment verification: staff tap a box to confirm the demo condition.
+- Staff identity is a typed demo name, not an authenticated account, and anyone with the URL can open `/staff`. The coupon redemption is single-use at the database level, but this build has no accounts, roles or audit signing.
+- Coupon conditions are copied from the campaign at issue time; changing a campaign afterwards does not alter coupons already issued. Expiry is evaluated against the server clock when a coupon is read or redeemed.
+- The reward and the coupon are independent: a coupon is issued for a solved extended mystery even if the player never claims a payout or the payout fails.
 - Campaign slugs do not change on title edits; published campaigns remain uneditable.
 
 See [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md) for the remaining phases.

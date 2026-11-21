@@ -13,8 +13,8 @@
 - [x] One actual Devnet test-token reward transaction is initiated and shown with confirmed chain status and explorer link. *(P0.3 — the visitor pastes a Devnet address after verification; the treasury sends 1.00 tUSDC, confirms it, and the app stores `paid` plus the signature and before/after balance. The asset is a valueless demo token, clearly labelled, not Circle USDC.)*
 - [x] MagicBlock is **actually exercised** for a relevant feature, with transaction / execution evidence. *(P0.3 — per-campaign completion counter delegated to an Ephemeral Rollup, incremented on the ER, committed back to Devnet; program, counter address and signatures are shown in the UI and returned by the API.)*
 - [x] Optional SNS + website + in-store ARG resolves to an achievement and conditional secret-menu coupon. *(P0.2 — social-style clue, merchant-site clue, in-store observation and a final answer; sets `coupon_eligible`. Coupon issuance itself is P0.4.)*
-- [ ] Staff opens the issued coupon and completes a redemption action. *(P0.4.)*
-- [ ] Merchant dashboard reflects visit, reward transaction and coupon result. *(Needs P0.3/P0.4 data.)*
+- [x] Staff opens the issued coupon and completes a redemption action. *(P0.4 — `/staff` looks up the code, shows the campaign terms, requires an explicit demo-condition confirmation, and performs a single-use conditional update. The coupon is a fictional entitlement; no payment is processed.)*
+- [x] Merchant dashboard reflects visit, reward transaction and coupon result. *(P0.4 — `/merchant` reports verified demo completions, payouts paid/pending/failed, extended solves, coupons issued/redeemed per campaign, with a recent-activity feed. No revenue or conversion claims.)*
 - [x] Replaying the full walkthrough requires no developer-only database patching or pre-recorded 'payment succeeded' screen. *(P0.3 — the reward is a real transfer from the demo treasury; `node scripts/chain/app-e2e.mjs` replays the whole journey through the app's own API.)*
 
 ## P1 — make it feel like a product
@@ -27,10 +27,10 @@
 
 ## P2 — demo proof
 
-- [ ] Reviewer can follow the whole journey without explanation. *(P0.2 covers campaign → play → evidence → verification; the payout leg is missing.)*
-- [ ] Real MagicBlock operation can be independently identified.
-- [ ] Explorer verifies a Devnet transfer; test token identified honestly.
-- [ ] Screenshots/recording, issue list, known limitations.
+- [x] Reviewer can follow the whole journey without explanation. *(P0.4 — merchant → operator → play → evidence → payout → extended ARG → coupon → staff redemption → dashboard.)*
+- [x] Real MagicBlock operation can be independently identified. *(P0.3/P0.4 — counter program, PDA, delegate, ER increment/commit and the committed base-layer value; ER transactions verified through the recorded ER endpoint.)*
+- [x] Explorer verifies a Devnet transfer; test token identified honestly. *(P0.3 — signature and before/after balance stored; the asset is labelled tUSDC / demo test token, never Circle USDC.)*
+- [ ] Screenshots/recording, issue list, known limitations. *(Screenshots and limitations exist; a recording and hosted URL are still open.)*
 
 ## Deferred until after E2E
 

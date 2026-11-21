@@ -1,6 +1,6 @@
 # Live demo runbook
 
-Status: P0.3 walked end to end — operator approval, MagicBlock Ephemeral Rollup counter, commit back to Devnet, and a real SPL payout to a fresh wallet.
+Status: P0.4 walked end to end — merchant campaign, operator publication, staged player trail, camera evidence, human verification, real Devnet payout, MagicBlock ER counter commit, extended ARG, coupon issuance, staff redemption, merchant reporting.
 
 ## Setup
 
@@ -12,20 +12,80 @@ Status: P0.3 walked end to end — operator approval, MagicBlock Ephemeral Rollu
 - Test-token mint: `61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1` — valueless **tUSDC / “ARG demo test token”** (6 decimals). This is **not** Circle USDC; the Circle devnet faucet was unusable from this environment (bot check).
 - Reward treasury: `DUonyYGVwJ3d1vMNfUWTCiFXHUJ6AgUyWGmPuSgpxr3N`
 - Completion-counter program: `8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C` (program data `GUdp8L5WGi6CyprZjz7euqxfKcgm7YT81KzfjeTEe3Nq`)
-- MagicBlock: Ephemeral Rollup, router `https://devnet-router.magicblock.app`, ER endpoint resolved to `https://devnet-as.magicblock.app` for the run below
+- MagicBlock: Ephemeral Rollup, router `https://devnet-router.magicblock.app`; the run below resolved to `https://devnet-as.magicblock.app`
+- Demo coupons: fictional, one per extended completion, no cash value, not redeemable at a real business
 
-## Reviewer journey (works today)
+Check the live configuration before a rehearsal:
 
-1. `/quests` → *The Ninth Cup* → **Start the quest**.
-2. Read the three online sources; each opens the next. Click through to the demo pages.
-3. Read the two in-store clues (the trail gate enforces online first).
-4. Answer the counter: four shelves + one for the ninth cup = `5`.
-5. Ask for the 3-minute hint, then the 5-minute hint (they unlock from the session start, not from a refresh).
-6. Enable the camera and capture, upload a photo, or use the labelled demo simulation. Share location or decline it.
-7. `/operator/evidence` → compare the photo with the private target description → **Approve**. This writes the completion *and* runs the MagicBlock step.
-8. Back on the quest page: verified banner, stopped clock (`0:04 · stopped at verification` in the captured run), all five trail steps complete, fixed reward recorded.
-9. In **Reward · Solana Devnet**, paste a Devnet address and press **Send 1.00 tUSDC**. Wait for the confirmation; the panel shows the signature, the recipient token account and the before/after balance.
-10. Open the second question, read all three parts, answer `11`. The extended achievement appears on `/quests#achievements` and coupon eligibility flips to unlocked.
+```bash
+npm run chain:state
+```
+
+This is read-only and prints the treasury address, SOL and token balances, the mint, the program and each campaign counter with its committed value and delegating ER. It never prints the secret key.
+
+## One continuous walkthrough
+
+Start with a clean demo database if you want the exact flow below: stop the dev server, run `npm run db:reset`, then `npm run dev`.
+
+### 1. Merchant creates and submits (P0.1)
+
+1. Open `/merchant` → **+ New campaign**.
+2. Fill the campaign: a shop, story, target object, counter question and answer, coupon item, minimum spend and validity. Add at least one online and one in-store clue, and the optional extended mystery.
+3. Save the draft, open it, then **Submit**. The campaign becomes *In review* and is locked for edits.
+
+### 2. Operator publishes (P0.1)
+
+4. Open `/operator`, review the campaign, and **Approve**. It appears in player discovery on `/quests`.
+
+### 3. Player solves the trail (P0.2)
+
+5. `/quests` → the campaign → **Start the quest**. The clock starts.
+6. Read the online sources one at a time, then the two in-store clues. The in-store half only unlocks after the online trail is read.
+7. Answer the counter (for *The Ninth Cup*: four shelves + one for the ninth cup = `5`). The 3- and 5-minute hints unlock from the session start, not from a refresh.
+8. Enable the camera and capture, upload a photo, or use the labelled demo simulation. Share location or decline it. Submit.
+
+### 4. Operator verifies, chain records (P0.2 + P0.3)
+
+9. `/operator/evidence` → compare the photo with the private target description → **Approve**.
+10. The completion is written, the campaign counter is created/delegated if needed, incremented **on the MagicBlock Ephemeral Rollup**, and committed back to Devnet.
+11. Back on the quest page: verified banner, stopped clock, fixed reward, coupon locked until the second question.
+
+### 5. Player claims the real Devnet reward (P0.3)
+
+12. In **Reward · Solana Devnet**, paste a Devnet address and press **Send 1.00 tUSDC**. The panel shows the signature, the recipient token account and the before/after balance.
+13. The **ER increment** and **ER commit** rows open `/chain/er/<signature>?endpoint=…`, which reads the transaction from the actual MagicBlock ER. The committed counter value is linked on ordinary Solana Explorer, because that value lives on the base layer.
+
+### 6. Player solves the ARG and receives the coupon (P0.4)
+
+14. Open the second question, read its three parts, answer `11` (nine on the stall + the ninth + the eleventh).
+15. A **demo secret-menu coupon** appears immediately: unique code, merchant and shop, item, minimum purchase, issue time, expiry, status and instructions to show it to staff.
+16. `/quests#coupons` shows the same coupon after a refresh or a later visit.
+
+### 7. Staff redeems it once (P0.4)
+
+17. Open `/staff`, type the code (for example `NINTH-7Q4K-9XZ2`) and **Look up coupon**.
+18. The full ticket appears with the campaign's minimum-spend condition and validity.
+19. Tick *I confirm that the fictional purchase condition for this demonstration has been met*, keep or change the demo staff name, and press **Redeem this demo coupon**.
+20. The coupon becomes **Redeemed** with the timestamp and staff identity. Looking the same code up again and trying to redeem it is refused: a coupon can only be used once.
+21. Try an unknown code (invalid) and a coupon whose expiry has passed (expired): each has its own clear message and no state change.
+
+### 8. Merchant sees the result (P0.4)
+
+22. `/merchant` → **What your trails produced**: verified demo completions, payouts paid/pending/failed, extended ARG solves, coupons issued and coupons redeemed, per campaign and in total.
+23. **Latest from your trails** shows the verified completion, the coupon issue and the staff redemption with timestamps.
+
+## What each count means
+
+| Label | Source |
+| --- | --- |
+| Verified demo completions | `quest_completions` rows written by operator approval |
+| Devnet payouts paid | completions with `payout_status = 'paid'` and a stored signature |
+| Payouts pending / failed | completions still unclaimed or with a recorded RPC error |
+| Extended ARG solved | completions with `extended_solved = 1` |
+| Demo coupons issued | `coupons` rows, one per extended completion |
+| Demo coupons redeemed | coupons with `status = 'redeemed'` |
+
+No revenue, real purchases, foot traffic or conversion rate is derived from these numbers.
 
 ## Chain evidence from the P0.3 run (2026-11-21)
 
@@ -36,8 +96,10 @@ Campaign *The Ninth Cup* (`the-ninth-cup`), counter PDA `tKit7TX2wmCENAG3GmFX9HQ
 | Create counter | `24yTF8M11JSyLMw83nsJjeNWb9KWPmDKxMcwDeHWh1gEb5QDCqCkxjcQJYe7Y9nDFGLHeXtbcjtL3jMcMB8fr3kY` |
 | Delegate to ER | `2PLQ7xzaMmfSoe9rbUj5jxAEeGgHXfRGQQCoHMu7m2aEnp5fpEFz24EQR5yfWYXmsBvFWDCgwPv8cADKQ84LS4V7` |
 | Increment on ER | `SeZzXjEDhj4NMmcQycj5HBxMqRsf46ZNZ2JPhmxYZzid7uV8HEJwTSF1hbu2Ub6CVcVTqgnokcKLqgfPf493TYd` |
-| Commit to Solana | `3aQtNLznNUGUH9dfmiBbFuDNa3UknDV8kafWcyUbZXPKCDDqiXroBYksUce9NeSULzQVertMskGVhCecgxxDxFmf` |
+| Commit intent on ER | `3aQtNLznNUGUH9dfmiBbFuDNa3UknDV8kafWcyUbZXPKCDDqiXroBYksUce9NeSULzQVertMskGVhCecgxxDxFmf` |
 | Counter value after | 2 verified completions (base layer) |
+
+The increment and commit are Ephemeral Rollup transactions, visible only from `devnet-as.magicblock.app` — querying `api.devnet.solana.com` for them correctly returns null. Open the completion's ER rows in the app to see the verification page.
 
 Payout to `3PKvZD6Y12WB6Bsidae3AS8CegcLJ4tpewm3RBy8QfnY`:
 
@@ -50,16 +112,52 @@ Payout to `3PKvZD6Y12WB6Bsidae3AS8CegcLJ4tpewm3RBy8QfnY`:
 
 Counter account on Explorer: https://explorer.solana.com/address/tKit7TX2wmCENAG3GmFX9HQrjwCYGsLJEDQDcL7ePvN?cluster=devnet
 
-Reproduce with `node scripts/chain/app-e2e.mjs` against a running dev server, and `npx --yes tsx@4 scripts/chain/selftest.ts` for the chain-only lifecycle.
+Reproduce the chain legs with `node scripts/chain/app-e2e.mjs` against a running dev server, and `npx --yes tsx@4 scripts/chain/selftest.ts` for the chain-only lifecycle.
+
+## P0.4 run (2026-11-21)
+
+A second campaign, **The Lantern Ledger** at Paper Moon Books, was created through the merchant form, submitted, approved in the operator console, played through the staged trail, evidenced with a labelled simulation, verified, paid and solved.
+
+| Step | Signature / address |
+| --- | --- |
+| Campaign counter PDA | `bDWneSE3FCsuNjHBArvp2NFzH3cFNSFwGe1ZnTuMo2a` |
+| Delegate to ER | `66MDTKzCZ2gjjwwTfj53PmVuBaQneaB6qN5PjbnBZU7mGFiAcnwBt4uy3dz9cjpvZmEfy8ExqHY9uWdRPa76yNXr` |
+| Increment on ER | `2WRK2tmfeZCKZmS4ehDjBbeRjTY5XK5GaTGboHrDFuYgDrcvHFa1StkKfuVEG8W24t2Pp5atZnTE2vqcmr2b8Pg4` |
+| Commit intent on ER | `4ardHobBTpbtXbxMQAxfmLtP3JbXQ4QS257FEwLVKYfwhobzC4hgEyRxehGjKW6pbxubWHCDhPLTq2vXQVUmSoaF` |
+| ER endpoint | `https://devnet-as.magicblock.app` (the router chose the Asia region) |
+| Committed counter value | 1, read from the base layer |
+| Payout | `3KEpDqXCkn3VD5EsyNyZy73PLExDf3YmrEdVr1ccsSTpja8vB17XpZbACuUMT48zFy61SrX4vPXLUACzEBcX58fG` |
+| Recipient | `CdhwzBqWcgm6eVkcJeLKnWyvZ4KZDSYUGfRSnVKvyRgD` · 0 → 1,000,000 base units (1.00 tUSDC) |
+| Coupon | `LANTER-3T5F-D9T9` · ₩12,000 minimum · valid 7 days · issued 21 Nov 19:25 UTC · redeemed 21 Nov 19:28 UTC by `staff.demo` |
+
+The staff checks produced the intended outcomes: unknown code → 404, expired coupon → 410, duplicate redemption → 409, redemption without the explicit demo-condition confirmation → 400. The coupon and its redeemed state survived a full server restart, and `/quests#coupons` still showed it afterwards. The merchant dashboard reported 1 verified completion, 1 paid payout, 1 extended solve, 1 coupon issued and 1 redeemed.
+
+Screenshots from this run: `artifacts/p04-coupon-desktop.png`, `artifacts/p04-coupon-mobile-390.png`, `artifacts/p04-staff-lookup.png`, `artifacts/p04-staff-redeemed.png`, `artifacts/p04-staff-mobile-390.png`, `artifacts/p04-coupons-mobile-390.png` (all under the gitignored `artifacts/` directory).
+
+## Coupon lifecycle states
+
+| State | Meaning | Staff action |
+| --- | --- | --- |
+| Issued | Earned by a verified completion that solved the extended mystery; inside its validity window | Look up, confirm the demo condition, redeem once |
+| Redeemed | A staff member confirmed and redeemed it; timestamp and demo staff name stored | No further redemption possible |
+| Expired | The validity window passed before redemption | No redemption; the player keeps the achievement and completion |
+
+## Known limitations for the reviewer
+
+- Coupons are fictional demo entitlements: no cash value, not a real offer, not redeemable at any real business.
+- There is no POS integration and no payment verification. Staff tick a box to confirm the fictional purchase condition.
+- Staff identity is a typed demo name, not an authenticated account. Anyone with the URL can open `/staff`.
+- The reward and the coupon are independent: the coupon is issued even if the player never claims, or the payout fails.
+- No notification is sent to the merchant; the dashboard reflects the database.
 
 ## Evidence to fill in
 
 - [x] Playable quest, staged clues, timed hints, camera/upload evidence, operator verification, extended mystery
 - [x] Real Devnet SPL payout with a confirmed signature and a verified balance change
 - [x] MagicBlock execution: delegation, ER increment, commit back to Solana, committed counter value
+- [x] Coupon issuance, player coupon ticket, staff single-use redemption, merchant activity report
 - [ ] Deployed app URL
-- [ ] Coupon issuance and staff redemption (P0.4)
 - [ ] Screen recording
-- [x] Known limitations / demo-only steps (see README)
+- [x] Known limitations / demo-only steps
 
-**Do not mark done until genuinely observed.** The items above were observed through the app's own API and in the cloud browser; the hosted deployment URL is still missing.
+**Do not mark done until genuinely observed.**

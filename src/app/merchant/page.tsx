@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { PageHeader, Stat, StatusBadge } from "@/components/ui";
 import { SubmitForReview } from "@/components/submit-for-review";
 import { getDemoMerchant, listMerchantCampaigns, merchantStats } from "@/lib/store";
-import { timeAgo } from "@/lib/format";
+import { merchantActivity } from "@/lib/coupons";
+import { formatDateTime, timeAgo } from "@/lib/format";
 import type { Campaign, CampaignStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -82,6 +83,7 @@ export default function MerchantPage() {
   const merchant = getDemoMerchant();
   const campaigns = listMerchantCampaigns(merchant.id);
   const stats = merchantStats(merchant.id);
+  const activity = merchantActivity(merchant.id);
 
   return (
     <div className="wrap space-y-8 pt-10">
@@ -140,6 +142,152 @@ export default function MerchantPage() {
       )}
 
       <section className="panel p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="mono-label">Demo activity</p>
+            <h2 className="mt-1 font-display text-2xl text-white/90">
+              What your trails produced
+            </h2>
+          </div>
+          <span className="chip border-line text-sage/60">From this app&apos;s database</span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <Stat
+            label="Verified demo completions"
+            value={activity.totals.verifiedCompletions}
+            hint="Operator-approved evidence"
+          />
+          <Stat
+            label="Devnet payouts paid"
+            value={activity.totals.payoutsPaid}
+            hint={`${activity.totals.payoutsPending} pending · ${activity.totals.payoutsFailed} failed`}
+          />
+          <Stat
+            label="Extended ARG solved"
+            value={activity.totals.extendedSolved}
+            hint="Optional second question"
+          />
+          <Stat
+            label="Demo coupons issued"
+            value={activity.totals.couponsIssued}
+            hint="One per extended completion"
+          />
+          <Stat
+            label="Demo coupons redeemed"
+            value={activity.totals.couponsRedeemed}
+            hint="Confirmed by staff"
+          />
+        </div>
+
+        {activity.campaigns.length > 0 ? (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[680px] border-collapse text-left text-[12px]">
+              <thead>
+                <tr className="border-b border-line/70 text-[10px] tracking-[0.12em] text-sage/45 uppercase">
+                  <th className="py-2 pr-3 font-normal">Campaign</th>
+                  <th className="py-2 pr-3 text-right font-normal">Verified</th>
+                  <th className="py-2 pr-3 text-right font-normal">Payouts paid</th>
+                  <th className="py-2 pr-3 text-right font-normal">Payouts pending / failed</th>
+                  <th className="py-2 pr-3 text-right font-normal">Extended solved</th>
+                  <th className="py-2 pr-3 text-right font-normal">Coupons issued</th>
+                  <th className="py-2 text-right font-normal">Coupons redeemed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line/50">
+                {activity.campaigns.map((row) => (
+                  <tr key={row.campaignId}>
+                    <td className="py-2.5 pr-3">
+                      <Link
+                        href={`/merchant/campaigns/${row.campaignId}`}
+                        className="text-white/85 hover:text-amber-soft"
+                      >
+                        {row.title}
+                      </Link>
+                      <p className="font-mono text-[10px] text-sage/40">{row.slug}</p>
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono text-white/80">
+                      {row.verifiedCompletions}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono text-mint/90">
+                      {row.payoutsPaid}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono text-sage/70">
+                      {row.payoutsPending} / {row.payoutsFailed}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono text-white/80">
+                      {row.extendedSolved}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono text-amber-soft">
+                      {row.couponsIssued}
+                    </td>
+                    <td className="py-2.5 text-right font-mono text-berry">
+                      {row.couponsRedeemed}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
+
+        <p className="mt-3 border-t border-line/60 pt-3 text-[11px] leading-relaxed text-sage/45">
+          These are demo counts only. They do not represent revenue, real purchases, verified foot
+          traffic or conversion rates.
+        </p>
+      </section>
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="mono-label">Recent activity</p>
+            <h2 className="mt-1 font-display text-2xl text-white/90">Latest from your trails</h2>
+          </div>
+          <Link href="/operator/evidence" className="text-[12px] text-sage/55 hover:text-amber-soft">
+            Evidence queue →
+          </Link>
+        </div>
+
+        {activity.recent.length === 0 ? (
+          <div className="panel-flat mt-3 px-5 py-6">
+            <p className="text-[13px] leading-relaxed text-sage/70">
+              No verified activity yet. A completion appears here after an operator approves the
+              player&apos;s evidence; a coupon appears when that player also solves the optional
+              second question.
+            </p>
+          </div>
+        ) : (
+          <ul className="panel mt-3 divide-y divide-line/60">
+            {activity.recent.map((event) => (
+              <li
+                key={`${event.kind}-${event.at}-${event.campaignSlug}-${event.kind === "completion" ? "" : event.code}`}
+                className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="text-[13px] text-white/85">
+                    {event.kind === "completion"
+                      ? "Verified demo completion"
+                      : event.kind === "coupon_issued"
+                        ? "Demo coupon issued"
+                        : "Demo coupon redeemed"}{" "}
+                    <span className="text-sage/55">· {event.campaignTitle}</span>
+                  </p>
+                  <p className="mt-0.5 text-[11.5px] text-sage/55">
+                    {event.kind === "completion"
+                      ? `${event.rewardAmount} test credits · payout ${event.payoutStatus}`
+                      : `Code ${event.code}${event.kind === "coupon_redeemed" && event.redeemedBy ? ` · by ${event.redeemedBy}` : ""}`}
+                  </p>
+                </div>
+                <p className="shrink-0 text-[11px] text-sage/40">
+                  {formatDateTime(event.at)} · {timeAgo(event.at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="panel p-5">
         <p className="mono-label">How the pipeline moves</p>
         <ol className="mt-3 grid gap-3 text-[12.5px] leading-relaxed text-sage/70 sm:grid-cols-3">
           <li>
@@ -157,7 +305,8 @@ export default function MerchantPage() {
           </li>
         </ol>
         <p className="mt-3 border-t border-line/60 pt-3 text-[11.5px] text-sage/50">
-          Reward payouts and coupon issuance are not connected yet — they arrive with P0.3 and P0.4.
+          Reward payouts, the MagicBlock completion counter, demo coupons and staff redemption are
+          connected. The counts above are demo activity from this app, not business results.
         </p>
       </section>
     </div>

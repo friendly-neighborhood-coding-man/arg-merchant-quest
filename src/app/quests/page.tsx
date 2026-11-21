@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { QuestCard } from "@/components/quest-card";
+import { CouponTicket } from "@/components/coupon-ticket";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
+import { listPlayerCoupons } from "@/lib/coupons";
 import { listCampaignsByStatus } from "@/lib/store";
 import { PLAYER_COOKIE, listPlayerAchievements, listPlayerProgress } from "@/lib/quest-store";
 
@@ -20,6 +22,7 @@ export default async function QuestsPage() {
   const playerId = cookieStore.get(PLAYER_COOKIE)?.value ?? null;
   const progress = playerId ? listPlayerProgress(playerId) : new Map();
   const achievements = playerId ? listPlayerAchievements(playerId) : [];
+  const coupons = playerId ? listPlayerCoupons(playerId) : [];
   const playable = campaigns.filter((campaign) => campaign.answer.trim());
 
   return (
@@ -44,7 +47,7 @@ export default async function QuestsPage() {
         <div className="panel-flat px-4 py-3">
           <p className="mono-label text-[9px]">Reward asset</p>
           <p className="mt-1 text-[12.5px] text-white/80">Devnet test credits</p>
-          <p className="text-[11px] text-sage/50">Recorded now, paid in P0.3.</p>
+          <p className="text-[11px] text-sage/50">Paid as a real Devnet transfer after verification.</p>
         </div>
       </div>
 
@@ -130,6 +133,40 @@ export default async function QuestsPage() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section id="coupons" className="scroll-mt-24">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="mono-label">Your coupons</p>
+            <h2 className="mt-2 font-display text-2xl text-white/90">Demo secret-menu coupons</h2>
+            <p className="mt-1 text-[12px] text-sage/55">
+              Issued once when you solve a trail&apos;s optional second question. Show the code to
+              staff; the same code stays here after a refresh.
+            </p>
+          </div>
+          <span className="font-mono text-[11px] text-sage/45">{coupons.length} issued</span>
+        </div>
+
+        {coupons.length === 0 ? (
+          <div className="panel-flat mt-3 px-5 py-6">
+            <p className="text-[13px] leading-relaxed text-sage/70">
+              No demo coupon yet. Finish a trail, have the evidence verified, then solve its optional
+              second question to earn one.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            {coupons.map((coupon) => (
+              <CouponTicket key={coupon.id} coupon={coupon} />
+            ))}
+          </div>
+        )}
+
+        <p className="mt-2 text-[11px] leading-relaxed text-sage/45">
+          Demo entitlements only: no cash value, no real offer, and not redeemable at any real
+          business.
+        </p>
       </section>
     </div>
   );

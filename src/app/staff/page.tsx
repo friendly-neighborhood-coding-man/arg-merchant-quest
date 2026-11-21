@@ -1,24 +1,30 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Stat } from "@/components/ui";
+import { StaffRedemption } from "@/components/staff-redemption";
+import { couponStats, listRecentRedemptions } from "@/lib/coupons";
+import { formatDateTime } from "@/lib/format";
 import { listCampaignsByStatus } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Staff counter",
-  description: "Coupon redemption for store staff. Issued coupons arrive in P0.4.",
+  description:
+    "Look up a player's demo coupon, check its campaign terms and redeem it once. Demo only.",
 };
 
 export default function StaffPage() {
   const live = listCampaignsByStatus("published");
+  const stats = couponStats();
+  const recent = listRecentRedemptions(8);
 
   return (
     <div className="wrap space-y-8 pt-10">
       <PageHeader
         eyebrow="Staff counter"
         title="Redeem a demo coupon"
-        description="Staff will open a player's issued coupon, confirm its conditions, and mark it redeemed — the last step of the loop, feeding the merchant dashboard."
+        description="A player shows the code from their issued coupon. Check the merchant's terms, confirm the fictional purchase condition for the demonstration, and mark it redeemed once. This feeds the merchant dashboard."
         actions={
           <Link href="/quests" className="btn-ghost">
             Player view
@@ -26,53 +32,52 @@ export default function StaffPage() {
         }
       />
 
-      <section className="panel p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="grid grid-cols-3 gap-3">
+        <Stat label="Issued" value={stats.issued} hint="Ready to redeem" />
+        <Stat label="Redeemed" value={stats.redeemed} hint="Used once" />
+        <Stat label="Expired" value={stats.expired} hint="Past validity" />
+      </div>
+
+      <StaffRedemption />
+
+      <section>
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="mono-label">Status</p>
-            <h2 className="mt-1 font-display text-2xl text-white/90">
-              No coupons can be issued yet
-            </h2>
+            <p className="mono-label">Audit trail</p>
+            <h2 className="mt-1 font-display text-2xl text-white/90">Recent demo redemptions</h2>
           </div>
-          <span className="chip border-amber/40 bg-amber/10 text-amber-soft">
-            Planned for P0.4
-          </span>
+          <span className="font-mono text-[11px] text-sage/45">{stats.total} coupons total</span>
         </div>
-        <p className="mt-3 max-w-2xl text-[13.5px] leading-relaxed text-sage/75">
-          Quest play now records operator-verified completions, but coupon issuance (P0.4) and the
-          Devnet reward (P0.3) are still ahead, so this counter has nothing to redeem yet. It is
-          intentionally not a mocked redemption screen.
-        </p>
-
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          {[
-            {
-              title: "1 · Verify the code",
-              body: "Staff enters the coupon code shown in the player's account.",
-            },
-            {
-              title: "2 · Check the conditions",
-              body: "Minimum spend, validity window and per-visitor limit are printed on the coupon.",
-            },
-            {
-              title: "3 · Mark redeemed",
-              body: "Once redeemed it cannot be used again, and the merchant dashboard records it.",
-            },
-          ].map((step) => (
-            <div key={step.title} className="panel-flat p-4">
-              <p className="mono-label text-[9px]">Demo flow</p>
-              <p className="mt-1.5 text-[13.5px] font-semibold text-white/85">{step.title}</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-sage/65">{step.body}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-5 rounded-xl border border-amber/25 bg-amber/5 px-4 py-3">
-          <p className="text-[12px] leading-relaxed text-amber-soft/80">
-            Coupons in this prototype are demo entitlements with no cash value and cannot be
-            redeemed in a real business.
-          </p>
-        </div>
+        {recent.length === 0 ? (
+          <div className="panel-flat mt-3 px-5 py-6">
+            <p className="text-[13px] leading-relaxed text-sage/70">
+              No coupon has been redeemed yet. A player earns one by solving a trail&apos;s optional
+              second question.
+            </p>
+          </div>
+        ) : (
+          <div className="panel mt-3 divide-y divide-line/60">
+            {recent.map((row) => (
+              <div
+                key={`${row.code}-${row.redeemedAt}`}
+                className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="font-mono text-[12px] tracking-[0.12em] text-amber-soft">
+                    {row.code}
+                  </p>
+                  <p className="mt-0.5 truncate text-[12px] text-sage/60">
+                    {row.couponItem} · {row.shopName}
+                  </p>
+                </div>
+                <div className="text-[11.5px] text-sage/55 sm:text-right">
+                  <p>{formatDateTime(row.redeemedAt)}</p>
+                  <p className="font-mono text-[10.5px] text-sage/40">by {row.redeemedBy}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section>
@@ -105,6 +110,14 @@ export default function StaffPage() {
           </ul>
         )}
       </section>
+
+      <div className="rounded-xl border border-amber/25 bg-amber/5 px-4 py-3">
+        <p className="text-[12px] leading-relaxed text-amber-soft/80">
+          Coupons in this prototype are demo entitlements with no cash value and cannot be redeemed
+          in a real business. No payment is processed, and nothing here pretends that a real
+          purchase was verified.
+        </p>
+      </div>
     </div>
   );
 }

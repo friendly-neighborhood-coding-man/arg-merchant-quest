@@ -157,6 +157,38 @@ CREATE TABLE IF NOT EXISTS quest_completions (
 );
 
 CREATE INDEX IF NOT EXISTS quest_completions_campaign_idx ON quest_completions (campaign_id);
+
+-- P0.4: one demo coupon per verified completion that also solved the optional
+-- extended mystery. The terms are copied from the campaign at issue time so a
+-- later campaign edit cannot rewrite an already-issued entitlement.
+CREATE TABLE IF NOT EXISTS coupons (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  completion_id TEXT NOT NULL UNIQUE REFERENCES quest_completions(id) ON DELETE CASCADE,
+  session_id TEXT NOT NULL,
+  campaign_id TEXT NOT NULL,
+  merchant_id TEXT NOT NULL,
+  player_id TEXT NOT NULL,
+  merchant_name TEXT NOT NULL,
+  shop_name TEXT NOT NULL,
+  shop_area TEXT NOT NULL,
+  shop_address TEXT NOT NULL,
+  coupon_item TEXT NOT NULL,
+  coupon_min_spend INTEGER NOT NULL DEFAULT 0,
+  coupon_valid_days INTEGER NOT NULL DEFAULT 14,
+  coupon_notes TEXT NOT NULL DEFAULT '',
+  issued_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('issued', 'redeemed')) DEFAULT 'issued',
+  redeemed_at TEXT,
+  redeemed_by TEXT,
+  redemption_note TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS coupons_campaign_idx ON coupons (campaign_id);
+CREATE INDEX IF NOT EXISTS coupons_player_idx ON coupons (player_id, issued_at);
+CREATE INDEX IF NOT EXISTS coupons_status_idx ON coupons (status, expires_at);
 `;
 
 type GlobalWithDb = typeof globalThis & { __argMerchantDb?: DatabaseSync };

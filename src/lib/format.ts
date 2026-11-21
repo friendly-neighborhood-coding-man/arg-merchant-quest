@@ -1,3 +1,10 @@
+/**
+ * Times are formatted in one fixed zone. Letting the server (UTC) and the
+ * browser (local) each choose produced different strings for the same row,
+ * which is both confusing and a hydration mismatch.
+ */
+const TIME_ZONE = "UTC";
+
 export function formatDate(iso: string | null): string {
   if (!iso) return "—";
   const date = new Date(iso);
@@ -6,6 +13,7 @@ export function formatDate(iso: string | null): string {
     day: "numeric",
     month: "short",
     year: "numeric",
+    timeZone: TIME_ZONE,
   }).format(date);
 }
 
@@ -19,6 +27,8 @@ export function formatDateTime(iso: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: TIME_ZONE,
+    timeZoneName: "short",
   }).format(date);
 }
 

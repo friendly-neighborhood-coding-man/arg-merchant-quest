@@ -226,7 +226,11 @@ export async function claimReward(
     if (!updated) return { ok: false, status: 500, error: "The payout could not be recorded." };
     return { ok: true, completion: updated };
   } catch (error) {
-    const message = (error as Error).message;
+    // A payout failure must always give the player an actionable sentence. Some
+    // RPC errors arrive with an empty message, which used to leave a blank card.
+    const message =
+      (error as Error).message?.trim() ||
+      "The Devnet transfer failed without an error message. Check the demo treasury balance and the Devnet RPC endpoint, then retry.";
     failPayout(completion.id, message, wallet.toBase58());
     return { ok: false, status: 502, error: message };
   }

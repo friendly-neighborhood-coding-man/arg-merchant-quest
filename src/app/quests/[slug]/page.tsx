@@ -158,7 +158,7 @@ export default async function QuestDetailPage({ params }: PageProps) {
           <div className="panel p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="mono-label">Fixed reward</p>
-              <span className="chip border-line text-sage/60">P0.3 payout</span>
+              <span className="chip border-line text-sage/60">Devnet payout</span>
             </div>
             <div className="mt-2">
               <RewardLine amount={campaign.rewardAmount} />
@@ -172,7 +172,7 @@ export default async function QuestDetailPage({ params }: PageProps) {
           <div className="panel-flat p-4">
             <div className="flex items-center justify-between gap-3">
               <p className="mono-label">Demo coupon</p>
-              <span className="chip border-amber/30 text-amber/80">P0.4</span>
+              <span className="chip border-amber/30 text-amber/80">Extended ARG</span>
             </div>
             <p className="mt-2 font-display text-lg leading-snug text-white/90">
               {campaign.couponItem}
@@ -195,8 +195,8 @@ export default async function QuestDetailPage({ params }: PageProps) {
               </p>
             ) : null}
             <p className="mt-3 text-[11px] leading-relaxed text-amber/70">
-              The optional extended mystery unlocks coupon eligibility. Nothing is issued or
-              redeemable in this build.
+              Solving the optional extended mystery issues this demo coupon once. It has no cash
+              value and cannot be redeemed at a real business.
             </p>
           </div>
 

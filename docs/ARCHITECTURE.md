@@ -73,6 +73,32 @@ completions.payout_status = paid | failed, signature, before/after balances
 - The payout is separate and player-triggered: pasting an address is enough, the treasury pays the fee and creates the token account. This is demo custody, not a production wallet flow.
 - Chain failures never fake success: the completion stores `payout_status = 'failed'` with the RPC error and the UI shows it.
 
+## P0.4 coupons (as built)
+
+```text
+EXTENDED ANSWER ACCEPTED --> advanceExtended()
+                                 |  quest_completions.extended_solved = 1
+                                 |  issueCouponForCompletion(session_id)
+                                 v
+                            coupons (UNIQUE completion_id)
+                                 code, merchant/shop, item, min spend,
+                                 validity, issued_at, expires_at, status
+                                 |
+PLAYER  /quests/[slug]/play  <---+--> /quests#coupons
+        coupon ticket with code, terms, status
+                                 |
+STAFF   /staff -> /api/coupons/lookup?code=...   (read only)
+              -> /api/coupons/redeem             (single conditional UPDATE)
+                                 |
+MERCHANT /merchant  <- merchantActivity(merchant_id)  (SQL aggregates + recent events)
+```
+
+- Issue-time snapshot: coupon terms are copied from the campaign, so editing the campaign cannot rewrite an issued entitlement.
+- `UNIQUE(completion_id)` makes one coupon per verified extended completion; `UPDATE ... WHERE status = 'issued' AND expires_at > now` makes redemption single-use without an anti-fraud framework.
+- Expiry is derived from `expires_at` and the server clock, so no background job is needed.
+- Coupon issuance never depends on `payout_status`; the reward and the coupon are separate features.
+- Staff identity is a typed demo name. There is no authentication, POS integration or payment verification in this prototype.
+
 ## Important distinctions
 
 Knowing the clue answer is not proof that the user visited the referenced social profile. GPS+photo is limited evidence, not proof of continuous dwell. A confirmed Solana transaction does not prove app-level exactly-once reward. Demo coupons must be clearly nonredeemable in real businesses.

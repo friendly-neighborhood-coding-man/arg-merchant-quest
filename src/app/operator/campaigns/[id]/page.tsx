@@ -127,7 +127,7 @@ export default async function OperatorCampaignReview({ params }: PageProps) {
               speed and ARG skill never change the amount, and there is no first-solver bonus.
             </p>
             <p className="mt-2 text-[11px] text-sage/45">
-              The actual transfer is integrated in P0.3; this build records the terms only.
+              After you verify the player's evidence, the fixed reward is a real Devnet test-token transfer and the completion count is committed from a MagicBlock Ephemeral Rollup.
             </p>
           </div>
         </aside>

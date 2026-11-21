@@ -35,16 +35,16 @@ const LOOP = [
     role: "Chain",
     title: "Take the fixed reward",
     body: "One real Devnet test-credit transfer per verified completion. Same amount for everyone, no races.",
-    state: "next",
-    stateLabel: "Planned P0.3",
+    state: "live",
+    stateLabel: "Live now",
   },
   {
     n: "05",
     role: "Staff",
     title: "Redeem the demo coupon",
     body: "A conditional secret-menu entitlement, redeemed at the counter and reflected in the merchant view.",
-    state: "next",
-    stateLabel: "Planned P0.4",
+    state: "live",
+    stateLabel: "Live now",
   },
 ];
 
@@ -74,8 +74,8 @@ const ROLES = [
     href: "/staff",
     role: "Staff",
     title: "Counter",
-    body: "Where demo coupons will be checked and redeemed once the quest flow is complete.",
-    state: "P0.4",
+    body: "Look up a player's demo coupon, confirm the fictional condition and redeem it once.",
+    state: "Live",
   },
 ];
 
@@ -155,8 +155,8 @@ export default function HomePage() {
                 Open the dossier
               </Link>
               <p className="mt-3 text-[11px] leading-relaxed text-sage/45">
-                Demo campaign with fictional clues and a demo-only coupon. Reward payout arrives with
-                the P0.3 chain integration.
+                Demo campaign with fictional clues and a demo-only coupon. A verified completion pays
+                a real Devnet test-token transfer and records the counter on a MagicBlock ER.
               </p>
             </>
           ) : (
@@ -284,14 +284,16 @@ export default function HomePage() {
         <div className="panel p-5">
           <div className="flex items-center justify-between">
             <p className="mono-label">What works right now</p>
-            <span className="chip border-mint/30 text-mint">P0.2</span>
+            <span className="chip border-mint/30 text-mint">P0.4</span>
           </div>
           <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-sage/80">
             {[
               "Merchant creates a campaign with campaign-specific online and in-store clues.",
               "Published trails are playable: staged clues, a server-checked answer, 3- and 5-minute hints.",
               "Camera or uploaded evidence is reviewed by an operator — never auto-approved.",
-              "An optional extended mystery awards a second achievement and coupon eligibility.",
+              "A verified completion pays a real Devnet test-token transfer and commits a MagicBlock ER counter.",
+              "An optional extended mystery issues a demo coupon that staff redeem once at the counter.",
+              "The merchant dashboard counts verified completions, payouts and the coupon lifecycle.",
               "One SQLite database — every role reads the same connected state.",
             ].map((item) => (
               <li key={item} className="flex gap-2">
@@ -311,9 +313,9 @@ export default function HomePage() {
           </div>
           <ul className="mt-3 space-y-2 text-[13px] leading-relaxed text-sage/80">
             {[
-              "No rewards are paid yet: the Devnet transfer and MagicBlock integration land in P0.3.",
+              "Rewards are real Devnet transfers, but the token is a valueless demo asset — not Circle USDC and not money.",
               "Evidence review is a person, not image recognition — there are no fake AI verdicts.",
-              "Coupons are demo entitlements and cannot be redeemed in a real business.",
+              "Coupons are demo entitlements and cannot be redeemed in a real business; staff identity is typed, not authenticated.",
               "No sign-in yet — a browser cookie is the whole player identity.",
               "Camera and location are limited signals, never claimed as proof of presence.",
             ].map((item) => (

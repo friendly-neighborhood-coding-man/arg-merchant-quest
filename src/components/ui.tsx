@@ -101,8 +101,8 @@ export function TermSheet({ campaign }: { campaign: Campaign }) {
         </p>
       ) : null}
       <p className="mt-3 text-[11px] leading-relaxed text-amber/70">
-        Demo entitlement with visible conditions — not redeemable in a real business. Issued only
-        after a verified completion in a later phase.
+        Demo entitlement with visible conditions. Issued once when a verified player also solves the
+        optional extended mystery. No cash value and not redeemable in a real business.
       </p>
     </div>
   );

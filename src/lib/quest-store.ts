@@ -2,6 +2,12 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { evidenceDir, getDb } from "./db";
+import {
+  couponView,
+  ensureCouponForSession,
+  issueCouponForCompletion,
+  type CouponView,
+} from "./coupons";
 import { getCampaignById } from "./store";
 import type { Campaign, Clue, EvidenceKind, EvidenceStatus, QuestStage } from "./types";
 
@@ -719,6 +725,16 @@ export function advanceExtended(
     db.exec("ROLLBACK");
     throw error;
   }
+
+  // P0.4: solving the extended mystery issues exactly one demo coupon for this
+  // completion. Payout status is deliberately irrelevant — coupon issuance and
+  // the Devnet reward are separate features.
+  try {
+    issueCouponForCompletion(session.id);
+  } catch (error) {
+    console.error("Coupon issuance failed after an extended solve:", error);
+  }
+
   return { ok: true, solved: true };
 }
 
@@ -819,6 +835,8 @@ export interface QuestView {
     nextTitle: string | null;
     hint: string | null;
   };
+  /** P0.4 demo coupon, issued only when the extended mystery was solved. */
+  coupon: CouponView | null;
 }
 
 function clueView(clue: Clue): QuestClueView {
@@ -838,6 +856,10 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
   const evidence = getLatestEvidence(session.id);
   const completion = getCompletion(session.id);
   const elapsed = elapsedSeconds(session);
+  // Issuance is idempotent, so opening an older solved completion still shows
+  // its coupon without a second one being created.
+  const coupon =
+    completion && completion.extendedSolved ? ensureCouponForSession(session.id) : null;
 
   let stage: QuestStage;
   if (completion) stage = "complete";
@@ -963,6 +985,7 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
       nextTitle: extStep < 3 ? (extTitles[extStep] ?? null) : null,
       hint: session.extendedSolvedAt || extStep >= 3 ? campaign.extHint || EXT_HINT_FALLBACK : null,
     },
+    coupon: coupon ? couponView(coupon) : null,
   };
 }
 
@@ -1273,11 +1296,14 @@ export function completePayout(completionId: string, receipt: PayoutReceiptInput
 }
 
 export function failPayout(completionId: string, message: string, wallet?: string): void {
+  const text =
+    message.trim() ||
+    "The Devnet transfer failed without an error message. Check the treasury balance and RPC endpoint, then retry.";
   getDb()
     .prepare(
       `UPDATE quest_completions
        SET payout_status = 'failed', payout_error = ?, payout_wallet = COALESCE(?, payout_wallet)
        WHERE id = ?`,
     )
-    .run(message.slice(0, 500), wallet ?? null, completionId);
+    .run(text.slice(0, 500), wallet ?? null, completionId);
 }
