@@ -85,7 +85,7 @@ The Magic Router may delegate a campaign counter to `devnet-as`, `devnet-us` or 
 
 ### A. Product clue and hidden ending
 
-The optional mystery is now a physical-product puzzle for campaigns that opt in (`optional_mode = 'product_clue'`). *The Ninth Cup* is seeded this way: after the free quest is verified, the extended deduction asks which booth the pencil mark names, not just a lore fact. The extended answer unlocks a product request, not a coupon.
+The optional mystery is now a physical-product puzzle for campaigns that opt in (`optional_mode = 'product_clue'`). *The Ninth Cup* is seeded this way: after the free quest is verified, the extended deduction asks how many cups the letter counts in total — answer `11` (nine cups on the 1998 stall plus the two that never went home). The extended answer unlocks a product request, not a coupon.
 
 - The player chooses **The ninth cup pour-over flight** at the counter. The app creates a one-time reference such as `NINTH-CLUE-8BP5` and states plainly that ordering is simulated and never charges anything.
 - At `/staff`, the staff member looks up that reference, sees the designated product and the extended deduction, and confirms the fictional handoff. The clue is released only after that single conditional update.
@@ -165,7 +165,7 @@ No external services, accounts, API keys or credentials are required for P0.2.
 6. `/operator/evidence` → review the photo, compare it with the private target description, **Approve**. The completion is written.
 7. Back on `/quests/the-ninth-cup/play`: verified state, stopped clock, fixed reward, achievement, coupon eligibility locked. On approval the app also delegated/incremented/committed the campaign counter on MagicBlock (see the “MagicBlock · campaign completion counter” panel).
 8. Paste a Devnet address in **Reward · Solana Devnet** and claim. The transfer is sent, confirmed and shown with the signature, the amount and the recipient's new balance. The ER increment/commit links open the real Ephemeral Rollup transaction check.
-9. Scroll to **the second question**, open its three parts, answer `11` (nine on the stall + the ninth + the eleventh). The second achievement appears on `/quests#achievements` and a **demo secret-menu coupon** is issued immediately below the question: code, minimum spend, validity, expiry and status.
+9. Scroll to **the second question**, open its three parts, answer `11` (nine on the stall + the ninth + the eleventh). The second achievement appears on `/quests#achievements`. Since P1, *The Ninth Cup* is a product-clue campaign, so this unlocks the product request (see **What P1 adds**) instead of a coupon. Steps 10–12 describe a **coupon-mode** campaign (create one in `/merchant` with *Optional ending → Demo coupon*): there a **demo secret-menu coupon** is issued immediately below the question, with code, minimum spend, validity, expiry and status.
 10. Open `/staff`, enter the coupon code, read its terms, tick the confirmation that the fictional purchase condition was met, and **Redeem this demo coupon**. A second attempt with the same code is refused as already redeemed.
 11. Open `/merchant` → **What your trails produced**. The verified completion, payout, extended solve, issued coupon and redeemed coupon are counted for *The Ninth Cup*, with the redemption in the recent-activity feed.
 12. Return to `/quests#coupons`: the same coupon is still there, now marked redeemed. Refreshing or restarting the app does not lose it.

@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import {
+  answerCompanionMessage,
   companionConfigured,
   companionModelName,
-  generateCompanionReply,
   listCompanionMessages,
-  saveCompanionMessage,
 } from "@/lib/companion";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
 import { getQuestView, getSession } from "@/lib/quest-store";
@@ -70,12 +69,10 @@ export async function POST(
     );
   }
 
-  saveCompanionMessage(session.id, "user", raw.trim(), "user");
   const view = getQuestView(playerId, campaign);
   if (!view) return jsonError("Start the quest first.", 409);
 
-  const result = await generateCompanionReply(view, raw);
-  saveCompanionMessage(session.id, "assistant", result.reply, result.mode);
+  const result = await answerCompanionMessage(session.id, view, raw);
 
   return NextResponse.json({
     reply: result.reply,

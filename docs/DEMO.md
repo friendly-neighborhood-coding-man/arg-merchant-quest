@@ -57,7 +57,7 @@ Start with a clean demo database if you want the exact flow below: stop the dev 
 
 ### 6. Player solves the ARG and receives the coupon (P0.4)
 
-14. Open the second question, read its three parts, answer `11` (nine on the stall + the ninth + the eleventh).
+14. Open the second question, read its three parts, answer `11` (nine on the stall + the ninth + the eleventh). Since P1, *The Ninth Cup* is a product-clue campaign, so it unlocks the product request instead (see the P1 run below). Steps 15–21 apply to a **coupon-mode** campaign — create one in `/merchant` with *Optional ending → Demo coupon*.
 15. A **demo secret-menu coupon** appears immediately: unique code, merchant and shop, item, minimum purchase, issue time, expiry, status and instructions to show it to staff.
 16. `/quests#coupons` shows the same coupon after a refresh or a later visit.
 
@@ -160,7 +160,7 @@ Screenshots from this run: `artifacts/p04-coupon-desktop.png`, `artifacts/p04-co
 4. **Operator verifies** — `/operator/evidence` → approve. The app increments the original campaign completion counter on MagicBlock and stores the real signatures.
 5. **Player claims** — paste a Devnet address and claim 1.00 tUSDC. This happened **before** the optional mystery in the test run, which proves the fixed reward does not depend on any product order.
 6. **Companion (optional)** — open **Mara · investigation companion**. Ask “What have we discovered?”, “How might these two clues be connected?”, “What should I inspect next?” and “I have no idea what to do.” The panel labels the mode: live AI if configured, otherwise **Scripted guide**.
-7. **Extended deduction** — open the optional mystery (also reachable from the sticky **Optional mystery** jump on mobile). Answer `2` (booth number, not the number of returns). This unlocks the product request, not a coupon.
+7. **Extended deduction** — open the optional mystery (also reachable from the sticky **Optional mystery** jump on mobile). The question is *how many cups does the letter count in total?* Answer `11` (nine cups on the 1998 stall plus the two that never went home). A wrong answer such as `2` is rejected without revealing anything. This unlocks the product request, not a coupon.
 8. **Product request** — press **Request the clue**. A reference such as `NINTH-CLUE-8BP5` appears, with explicit simulation language and no payment. Try the final answer now: the server returns 409 because the clue is still locked.
 9. **Staff handoff** — `/staff` → **Product clue handoff** → enter the reference. Confirm the fictional serving condition and press **Confirm handoff**. The app looks up the product and releases the clue once; a second handoff is refused. This is also where the separate clue milestone is created/delegated/incremented on the ER and committed.
 10. **Clue reveal** — back on the quest page, the product section shows the digital sleeve-insert prop and the clue. Ask the companion about it; its answer now references the sleeve instruction and the recorded ER milestone.
