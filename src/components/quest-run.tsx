@@ -702,8 +702,12 @@ export function QuestRun({
             Quest verified — the counter approved your evidence.
           </p>
           <p className="mt-0.5 text-[12px] leading-relaxed text-mint/80">
-            Your {view.completion.rewardAmount}-credit reward is unclaimed until you send it to a
-            Devnet wallet below. The optional second question is still open.
+            {view.completion.payoutStatus === "paid"
+              ? `Your ${view.completion.rewardAmount}-credit reward was sent to ${view.completion.payout.wallet ?? "your Devnet wallet"}.`
+              : view.completion.payoutStatus === "failed"
+                ? `Your ${view.completion.rewardAmount}-credit reward is still unpaid — the last transfer failed. Retry it below.`
+                : `Your ${view.completion.rewardAmount}-credit reward is unclaimed until you send it to a Devnet wallet below.`}{" "}
+            {view.extended.solved ? "" : "The optional second question is still open."}
           </p>
         </div>
       ) : view.stage === "reviewing" ? (
