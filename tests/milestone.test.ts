@@ -35,8 +35,21 @@ test("committed value 0 is inconsistent → unconfirmed, never committed", () =>
 });
 
 test("'committed' without a commit signature or read-back value → unconfirmed", () => {
-  assert.equal(milestoneState({ status: "committed", committedValue: 4, commitSignature: null }), "unconfirmed");
-  assert.equal(milestoneState({ status: "committed", committedValue: null, commitSignature: SIG }), "unconfirmed");
+  assert.equal(
+    milestoneState({ status: "committed", committedValue: 4, commitSignature: null, incrementSignature: SIG }),
+    "unconfirmed",
+  );
+  assert.equal(
+    milestoneState({ status: "committed", committedValue: null, commitSignature: SIG, incrementSignature: SIG }),
+    "unconfirmed",
+  );
+});
+
+test("'committed' needs the increment signature too, so a campaign count cannot stand in for this handoff", () => {
+  assert.equal(
+    milestoneState({ status: "committed", committedValue: 4, commitSignature: SIG, incrementSignature: null }),
+    "unconfirmed",
+  );
 });
 
 test("ER transaction sent but commit not confirmed → unconfirmed", () => {

@@ -143,6 +143,73 @@ test("milestone wording follows this claim's evidence: committed for 1 and 2+, d
   assert.doesNotMatch(unavailable, /is committed/);
 });
 
+test("reasoning prompts get campaign-specific reasoning, not navigation or the answer", () => {
+  const campaign = createSecondBooth();
+  const run = playTo(campaign, { basic: "2", extended: "2" }, "released", nextPlayer());
+  const hypothesis = reply(run.view(), "Here is my hypothesis: the sold records are the missing number. Does it fit?");
+  assert.match(hypothesis, /hypothesis|weakest/i);
+  assert.ok(!NINTH_CUP_WORDS.test(hypothesis), hypothesis);
+
+  const missing = reply(run.view(), "What evidence am I missing?");
+  assert.match(missing, /product clue|final question|missing/i);
+  assert.ok(!NINTH_CUP_WORDS.test(missing), missing);
+
+  const changed = reply(run.view(), "What changed after the product handoff?");
+  assert.ok(changed.includes(campaign.productClue), changed);
+  assert.ok(!NINTH_CUP_WORDS.test(changed.replace(campaign.productClue, "")), changed);
+
+  const contradiction = reply(run.view(), "Which clues contradict each other?");
+  assert.match(contradiction, /contradiction|Earlier|Later|incompatible/i);
+  assert.ok(!/\b6\b/.test(contradiction), contradiction);
+});
+
+test("a repeated question does not produce the same scripted paragraph twice", () => {
+  const run = playTo(campaignBySlug(NINTH_CUP.slug), NINTH_CUP.answers, "started", nextPlayer());
+  const first = scriptedReply(run.view(), "What should I inspect next?");
+  const second = scriptedReply(run.view(), "What should I inspect next?", [
+    { role: "assistant", content: first.reply, mode: "scripted", createdAt: new Date().toISOString() },
+  ]);
+  assert.notEqual(second.reply, first.reply);
+  assert.match(second.reply, /circled|Name one detail|Say your current answer|What will your photo/i);
+});
+
+test("provider compatibility: a max_tokens rejection retries once with max_completion_tokens", async () => {
+  const run = playTo(campaignBySlug(NINTH_CUP.slug), NINTH_CUP.answers, "started", nextPlayer());
+  const bodies: Array<Record<string, unknown>> = [];
+  const realFetch = globalThis.fetch;
+  process.env.ARG_AI_API_KEY = "test-key-not-real";
+  process.env.ARG_AI_MODEL = "newer-model";
+  process.env.ARG_AI_BASE_URL = "http://provider.invalid/v1";
+  let call = 0;
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    call += 1;
+    if (call === 1) {
+      return new Response("Unsupported parameter: 'max_tokens' is not supported with this model.", {
+        status: 400,
+      });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: "live after retry" } }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    const result = await answerCompanionMessage(run.sessionId, run.view(), "Compare the two records?");
+    assert.equal(result.mode, "live");
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0].max_tokens, 240);
+    assert.equal(bodies[1].max_tokens, undefined);
+    assert.equal(bodies[1].max_completion_tokens, 240);
+    assert.deepEqual(bodies[0].messages, bodies[1].messages);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ARG_AI_API_KEY;
+    delete process.env.ARG_AI_MODEL;
+    delete process.env.ARG_AI_BASE_URL;
+  }
+});
+
 test("live provider request: the current message appears exactly once, history is kept in order", async () => {
   const campaign = campaignBySlug(NINTH_CUP.slug);
   const run = playTo(campaign, NINTH_CUP.answers, "started", nextPlayer());
@@ -187,9 +254,16 @@ test("live provider request: the current message appears exactly once, history i
     );
     assert.equal(messages.filter((m) => m.content === "Second question: what next?").length, 1);
 
-    // The system prompt carries no private answer, unreleased clue or ending.
+    // The system prompt carries no private answer, unreleased clue, final
+    // question or ending.
     const system = messages[0].content;
-    for (const secret of [campaign.productClue, campaign.finalHint, campaign.endingTitle, campaign.extHint]) {
+    for (const secret of [
+      campaign.productClue,
+      campaign.finalHint,
+      campaign.finalQuestion,
+      campaign.endingTitle,
+      campaign.extHint,
+    ]) {
       assert.ok(!system.includes(secret), `system prompt leaked: ${secret.slice(0, 40)}`);
     }
 

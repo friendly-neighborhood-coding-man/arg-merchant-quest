@@ -142,4 +142,8 @@ Knowing the clue answer is not proof that the user visited the referenced social
 
 P1 adds: a real ER milestone proves only that *this app* performed a staff-confirmed handoff for a reference; it does not prove a real purchase, delivery or physical clue was handed over. The product clue is a simulation, and the companion is not an authority on the puzzle.
 
+### P1 R2 (as built)
+
+R2 is a presentation and workflow pass with **no schema change**. `src/lib/story-draft.ts` maps a Story Lab concept into the existing campaign form fields; the form merges it once through `sessionStorage` + `?lab=1` and then removes both, so refreshing cannot overwrite merchant edits. Shared player headings are campaign-generic, and `StoryTransition` derives its copy from campaign state rather than the seeded story. The staff page keeps coupon and product lookup as separate cards with anchors; technical payout and MagicBlock records remain in collapsed `<details>`. `scripts/run-tests.mjs` compiles `tsconfig.test.json` and runs Node's built-in test runner, so `npm test` works on Windows, macOS and Linux without shell globs.
+
 These caveats are for transparent UI/evidence, **not** pre-E2E research or security work.

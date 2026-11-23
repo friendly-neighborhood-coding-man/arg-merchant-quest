@@ -193,7 +193,7 @@ export function requestProductClaim(
     return {
       ok: false,
       status: 409,
-      error: "Solve the pre-order deduction before requesting the product clue.",
+      error: "Solve the optional deduction before requesting the product clue.",
     };
   }
 

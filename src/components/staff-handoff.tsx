@@ -166,7 +166,7 @@ export function StaffHandoff() {
           className="input font-mono tracking-[0.1em] uppercase"
           value={reference}
           onChange={(event) => setReference(event.target.value)}
-          placeholder="NINTH-CLUE-XXXX"
+          placeholder="CLUE-XXXX-XXXX"
           autoComplete="off"
           spellCheck={false}
           aria-label="Product claim reference"
@@ -193,22 +193,28 @@ export function StaffHandoff() {
           <p className="mt-1 text-[12px] leading-relaxed text-mint/85">
             The player can now read the final clue. The same reference cannot release it twice.
           </p>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-mint/70">
+            Tell the player the clue is now on their trail. Nothing was charged and no real order
+            was placed.
+          </p>
           {result.chainNote ? (
             <p className="mt-2 text-[11.5px] leading-relaxed text-amber/80">{result.chainNote}</p>
           ) : result.chain?.committedValue !== null && result.chain ? (
-            <p className="mt-2 text-[11.5px] leading-relaxed text-mint/75">
-              MagicBlock clue milestone committed (value {result.chain.committedValue}) on{" "}
-              {result.chain.erEndpoint}.
+            <details className="mt-2 text-[11px] text-mint/70">
+              <summary className="cursor-pointer text-sage/50">
+                Optional technical record · MagicBlock milestone
+              </summary>
+              <p className="mt-1.5 leading-relaxed">
+                This handoff was recorded as game state on the demo MagicBlock counter (campaign
+                count {result.chain.committedValue}). It is not proof of a purchase.
+              </p>
               {result.chain.incrementSignature ? (
-                <>
-                  {" "}
-                  <a
-                    className="link"
-                    href={erLink(result.chain.incrementSignature, result.chain.erEndpoint)}
-                  >
-                    Verify ER update
-                  </a>
-                </>
+                <a
+                  className="link"
+                  href={erLink(result.chain.incrementSignature, result.chain.erEndpoint)}
+                >
+                  Verify ER increment
+                </a>
               ) : null}
               {result.chain.commitSignature ? (
                 <>
@@ -221,7 +227,7 @@ export function StaffHandoff() {
                   </a>
                 </>
               ) : null}
-            </p>
+            </details>
           ) : null}
         </div>
       ) : null}
@@ -232,7 +238,7 @@ export function StaffHandoff() {
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <div>
                 <p className="mono-label text-[9px] text-amber/75">Reference</p>
-                <p className="mt-1 font-mono text-[18px] tracking-[0.12em] text-amber-soft">
+                <p className="mt-1 font-mono text-[18px] tracking-[0.12em] break-all text-amber-soft">
                   {lookup.claim.reference}
                 </p>
               </div>
@@ -308,7 +314,7 @@ export function StaffHandoff() {
                     className="input"
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
-                    placeholder="e.g. sleeve handed over at the counter"
+                    placeholder="e.g. product handed over at the counter"
                     maxLength={200}
                   />
                 </div>
@@ -320,14 +326,11 @@ export function StaffHandoff() {
                 disabled={!canHandoff}
                 className="btn-primary mt-3 w-full py-2.5"
               >
-                {busy === "handoff"
-                  ? "Releasing clue & recording MagicBlock milestone…"
-                  : "Release the product clue"}
+                {busy === "handoff" ? "Releasing the clue…" : "Release the product clue"}
               </button>
               <p className="mt-2 text-[11px] leading-relaxed text-sage/45">
-                The clue release is a single database state change. The MagicBlock milestone is
-                separate: if the ER is unavailable, the clue is still released locally and the
-                dashboard shows the on-chain state honestly.
+                The clue can be released once. If the demo's optional on-chain record is unavailable,
+                the clue still works; the dashboard shows the difference honestly.
               </p>
             </div>
           ) : (
@@ -337,13 +340,18 @@ export function StaffHandoff() {
                 {lookup.claim.handedOffBy ?? "staff"}. Staff cannot release it a second time.
               </p>
               {lookup.claim.chainStatus ? (
-                <p className="mt-1 text-[11px] leading-relaxed text-sage/50">
-                  MagicBlock milestone: {lookup.claim.chainStatus}
-                  {lookup.claim.chainCommittedValue !== null
-                    ? ` · committed value ${lookup.claim.chainCommittedValue}`
-                    : ""}
-                  {lookup.claim.chainError ? ` · ${lookup.claim.chainError}` : ""}
-                </p>
+                <details className="mt-1 text-[11px] leading-relaxed text-sage/50">
+                  <summary className="cursor-pointer text-sage/45">
+                    Optional technical record
+                  </summary>
+                  <p className="mt-1">
+                    Demo game-state record: {lookup.claim.chainStatus}
+                    {lookup.claim.chainCommittedValue !== null
+                      ? ` · campaign count ${lookup.claim.chainCommittedValue}`
+                      : ""}
+                    {lookup.claim.chainError ? ` · ${lookup.claim.chainError}` : ""}
+                  </p>
+                </details>
               ) : null}
             </div>
           )}

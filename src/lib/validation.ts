@@ -329,7 +329,7 @@ export function validateCampaignInput(raw: unknown): ValidationResult {
       errors.finalAnswer = `Answer must be under ${LIMITS.finalAnswer[1]} characters.`;
     }
     if (!value.extAnswer) {
-      errors.extAnswer = "Add the pre-order deduction answer for the product mystery.";
+      errors.extAnswer = "Add the optional deduction answer for the product mystery.";
     }
     const achievementBodyIssue = optionalLengthError(
       value.achievementBody,

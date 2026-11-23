@@ -27,8 +27,8 @@ export default function StaffPage() {
     <div className="wrap space-y-8 pt-10">
       <PageHeader
         eyebrow="Staff counter"
-        title="Redeem a demo coupon"
-        description="A player shows the code from their issued coupon. Check the merchant's terms, confirm the fictional purchase condition for the demonstration, and mark it redeemed once. This feeds the merchant dashboard."
+        title="Two things happen at the counter"
+        description="A player may show a demo coupon code or a product-clue reference. Choose the matching workflow below. No Solana or MagicBlock knowledge is needed; both are demonstration steps, not real purchases."
         actions={
           <Link href="/quests" className="btn-ghost">
             Player view
@@ -36,21 +36,62 @@ export default function StaffPage() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Issued" value={stats.issued} hint="Ready to redeem" />
-        <Stat label="Redeemed" value={stats.redeemed} hint="Used once" />
-        <Stat label="Expired" value={stats.expired} hint="Past validity" />
+      <section className="grid gap-3 sm:grid-cols-2">
+        <a
+          href="#coupon-workflow"
+          className="panel group flex flex-col p-5 transition hover:border-amber/40"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="mono-label text-amber/80">Workflow 1</span>
+            <span className="chip border-amber/30 text-amber/80">Coupon code</span>
+          </div>
+          <h2 className="mt-2 font-display text-2xl text-white/95">Redeem a demo coupon</h2>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-sage/70">
+            The player shows a code such as <span className="font-mono text-amber-soft">NINTH-XXXX-XXXX</span>.
+            Look it up, read the terms, confirm the demo condition, redeem it once.
+          </p>
+          <span className="mt-3 text-[12px] text-amber-soft group-hover:underline">Open coupon workflow ↓</span>
+        </a>
+        <a
+          href="#product-workflow"
+          className="panel group flex flex-col p-5 transition hover:border-amber/40"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="mono-label text-amber/80">Workflow 2</span>
+            <span className="chip border-amber/30 text-amber/80">Product reference</span>
+          </div>
+          <h2 className="mt-2 font-display text-2xl text-white/95">Release a product clue</h2>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-sage/70">
+            The player shows a reference such as <span className="font-mono text-amber-soft">CLUE-XXXX-XXXX</span>.
+            Check the fictional product, confirm the handoff, release the clue once.
+          </p>
+          <span className="mt-3 text-[12px] text-amber-soft group-hover:underline">Open product workflow ↓</span>
+        </a>
+      </section>
+
+      <div id="coupon-workflow" className="scroll-mt-24">
+        <StaffRedemption />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <Stat label="Product clues" value={claims.total} hint="Optional ARG requests" />
-        <Stat label="Clues released" value={claims.handedOff} hint="One-time handoff" />
-        <Stat label="Awaiting handoff" value={claims.awaitingHandoff} hint="Reference issued" />
+      <div id="product-workflow" className="scroll-mt-24">
+        <StaffHandoff />
       </div>
 
-      <StaffRedemption />
-
-      <StaffHandoff />
+      <details className="panel px-4 py-3">
+        <summary className="cursor-pointer text-[12.5px] font-semibold text-white/85">
+          Today at the counter · counts and audit trail
+        </summary>
+        <div className="mt-4 space-y-6">
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="Issued" value={stats.issued} hint="Ready to redeem" />
+            <Stat label="Redeemed" value={stats.redeemed} hint="Used once" />
+            <Stat label="Expired" value={stats.expired} hint="Past validity" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Stat label="Product clues" value={claims.total} hint="Optional ARG requests" />
+            <Stat label="Clues released" value={claims.handedOff} hint="One-time handoff" />
+            <Stat label="Awaiting handoff" value={claims.awaitingHandoff} hint="Reference issued" />
+          </div>
 
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -66,7 +107,7 @@ export default function StaffPage() {
           <div className="panel-flat mt-3 px-5 py-6">
             <p className="text-[13px] leading-relaxed text-sage/70">
               No optional product clue has been requested yet. A player earns one by finishing the
-              free trail and solving the pre-order deduction.
+              free trail and solving the optional deduction.
             </p>
           </div>
         ) : (
@@ -139,6 +180,8 @@ export default function StaffPage() {
           </div>
         )}
       </section>
+        </div>
+      </details>
 
       <section>
         <h2 className="font-display text-2xl text-white/90">Live quests at your counter</h2>

@@ -160,7 +160,7 @@ export function RewardClaim({
   }
 
   return (
-    <section className="panel border-mint/30 p-5">
+    <section id="reward" className="scroll-mt-24 panel border-mint/30 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="mono-label text-mint/80">Reward · Solana Devnet</p>
         <span
@@ -241,48 +241,53 @@ export function RewardClaim({
       ) : null}
 
       {reward && paid ? (
-        <div className="mt-4 space-y-1 rounded-xl border border-mint/30 bg-mint/5 px-4 py-3">
-          <p className="text-[12px] text-mint/85">
-            This reward transferred {formatUnits(payout.recipientAfter !== null && payout.recipientBefore !== null ? payout.recipientAfter - payout.recipientBefore : null)} {reward.symbol}.
-          </p>
-          <ChainRow
-            label="Transaction"
-            value={payout.signature ?? ""}
-            link={payout.signature ? explorerTx(payout.signature) : undefined}
-          />
-          <ChainRow label="Recipient" value={payout.wallet ?? ""} link={payout.wallet ? explorerAddress(payout.wallet) : undefined} />
-          <ChainRow
-            label="Token account"
-            value={payout.recipientTokenAccount ?? ""}
-            link={payout.recipientTokenAccount ? explorerAddress(payout.recipientTokenAccount) : undefined}
-          />
-          <ChainRow
-            label="Balance change"
-            value={`${formatUnits(payout.recipientBefore)} → ${formatUnits(payout.recipientAfter)} ${reward.symbol}`}
-          />
-          <ChainRow label="Confirmed" value={payout.confirmedAt ? formatDateTime(payout.confirmedAt) : "—"} />
+        <details className="mt-4 rounded-xl border border-mint/30 bg-mint/5 px-4 py-3">
+          <summary className="cursor-pointer text-[12px] text-mint/85">
+            Payment confirmed · open the transaction evidence
+          </summary>
+          <div className="mt-3 space-y-1">
+            <p className="text-[12px] text-mint/85">
+              This reward transferred {formatUnits(payout.recipientAfter !== null && payout.recipientBefore !== null ? payout.recipientAfter - payout.recipientBefore : null)} {reward.symbol}.
+            </p>
+            <ChainRow
+              label="Transaction"
+              value={payout.signature ?? ""}
+              link={payout.signature ? explorerTx(payout.signature) : undefined}
+            />
+            <ChainRow label="Recipient" value={payout.wallet ?? ""} link={payout.wallet ? explorerAddress(payout.wallet) : undefined} />
+            <ChainRow
+              label="Token account"
+              value={payout.recipientTokenAccount ?? ""}
+              link={payout.recipientTokenAccount ? explorerAddress(payout.recipientTokenAccount) : undefined}
+            />
+            <ChainRow
+              label="Balance change"
+              value={`${formatUnits(payout.recipientBefore)} → ${formatUnits(payout.recipientAfter)} ${reward.symbol}`}
+            />
+            <ChainRow label="Confirmed" value={payout.confirmedAt ? formatDateTime(payout.confirmedAt) : "—"} />
 
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => void verifyBalance()}
-              disabled={checking}
-              className="btn-ghost py-1.5 text-[11.5px]"
-            >
-              {checking ? "Checking RPC…" : "Read the wallet balance from the chain"}
-            </button>
-            {balance !== null ? (
-              <span className="font-mono text-[11px] text-mint">
-                {balance} {reward.symbol} now
-              </span>
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => void verifyBalance()}
+                disabled={checking}
+                className="btn-ghost py-1.5 text-[11.5px]"
+              >
+                {checking ? "Checking RPC…" : "Read the wallet balance from the chain"}
+              </button>
+              {balance !== null ? (
+                <span className="font-mono text-[11px] text-mint">
+                  {balance} {reward.symbol} now
+                </span>
+              ) : null}
+            </div>
+            <p className="text-[11px] leading-relaxed text-sage/40">
+              <span className="text-sage/60">Current wallet balance</span> is the recipient
+              wallet&apos;s total balance now, not the size of this individual reward. Open the
+              transaction in Solana Explorer to confirm the mint, amount and recipient yourself.
+            </p>
           </div>
-          <p className="text-[11px] leading-relaxed text-sage/40">
-            <span className="text-sage/60">Current wallet balance</span> is the recipient
-            wallet&apos;s total balance now, not the size of this individual reward. Open the
-            transaction in Solana Explorer to confirm the mint, amount and recipient yourself.
-          </p>
-        </div>
+        </details>
       ) : null}
 
       {reward && !paid ? (
@@ -319,8 +324,8 @@ export function RewardClaim({
         </div>
       ) : null}
 
-      <div className="mt-5 rounded-xl border border-line/70 bg-ink-soft/50 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <details className="mt-5 rounded-xl border border-line/70 bg-ink-soft/50 px-4 py-3">
+        <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
           <p className="mono-label text-[9px] text-berry/80">MagicBlock · campaign completion counter</p>
           <span
             className={
@@ -341,7 +346,7 @@ export function RewardClaim({
                   ? "Update failed"
                   : "Pending"}
           </span>
-        </div>
+        </summary>
 
         <p className="mt-1.5 text-[11.5px] leading-relaxed text-sage/55">
           {!chainConfigured
@@ -355,6 +360,10 @@ export function RewardClaim({
 
         {chainConfigured ? (
           <>
+            <p className="mt-2 text-[10.5px] leading-relaxed text-sage/40">
+              Technical proof for reviewers: the program, counter PDA, base-layer delegation and
+              ER transactions. The player-facing result is already shown above.
+            </p>
             <div className="mt-2">
               <ChainRow
                 label="Program"
@@ -414,7 +423,7 @@ export function RewardClaim({
         {chain.error || chainError ? (
           <p className="mt-2 break-words text-[11px] text-rust/80">{chain.error ?? chainError}</p>
         ) : null}
-      </div>
+      </details>
 
       {simulated ? (
         <p className="mt-3 text-[11px] leading-relaxed text-sage/45">

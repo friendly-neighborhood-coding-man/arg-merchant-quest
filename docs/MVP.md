@@ -1,6 +1,6 @@
 # MVP — one working vertical slice
 
-**Priority: user experience and function integration, not exhaustive hardening.** P1 “Living ARG” is implemented; browser visual checks and the live LLM path remain open.
+**Priority: user experience and function integration, not exhaustive hardening.** P1 “Living ARG” and P1 R2 “Playable Experience & Demo Polish” are implemented; the live LLM path remains open.
 
 ## P0 — full end-to-end
 
@@ -27,7 +27,9 @@
 - [x] Product-contained final clue with a one-time staff handoff, hidden ending and persistent achievement. *(P1 — `optional_mode = 'product_clue'`; the clue is released only after the conditional handoff and never enters the player view before that. The product order is simulated; no payment is processed.)*
 - [x] AI investigation companion with revealed-clue context, honest fallback and no private answer leakage. *(P1 — OpenAI-compatible adapter via `ARG_AI_*`, deterministic scripted Mara when unconfigured or unavailable; the final answer and locked clue are filtered out server-side. Live provider path unverified without a key.)*
 - [x] Real MagicBlock gameplay state that changes companion guidance. *(P1 — an isolated clue milestone PDA is created/delegated/incremented/committed on the ER at handoff; the companion reads it and changes its next-step guidance. ER failure is recorded, never faked.)*
-- [x] Merchant story-drafting aid that separates facts, merchant input and fiction. *(P1 — `/merchant` story lab, draft only, three concepts, local fallback without a key.)*
+- [x] Merchant story-drafting aid that separates facts, merchant input and fiction. *(P1 — `/merchant` story lab, draft only, three concepts, local fallback without a key. R2 adds **Use this concept**, which merges one draft into the existing form once and marks unsupplied required fields `INCOMPLETE —`.)*
+- [x] Playable-experience pass. *(R2 — objective-first player flow, campaign-aware transitions, generic headings, inline optional invitation, collapsed technical evidence, separated staff coupon/product workflows, mobile safeguards and overflow checks at 390/768/1280 px.)*
+- [x] Portable regression suite. *(R2 — `npm test` runs `node scripts/run-tests.mjs`: `tsc -p tsconfig.test.json`, then Node's built-in test runner. 24 tests.)*
 
 ## P2 — demo proof
 

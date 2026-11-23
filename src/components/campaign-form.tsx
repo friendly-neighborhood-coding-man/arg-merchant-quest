@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { Campaign } from "@/lib/types";
 import type { FieldErrors } from "@/lib/validation";
+import type { StoryCampaignDraft } from "@/lib/story-draft";
 
 type ClueKind = "onlineClues" | "instoreClues";
 
@@ -244,6 +245,38 @@ export function CampaignForm({
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [labNotice, setLabNotice] = useState<string | null>(null);
+
+  // A Story Lab concept is handed over through sessionStorage and merged once
+  // into the existing editable form. Removing the query and storage entry means
+  // a later refresh cannot overwrite the merchant's edits.
+  useEffect(() => {
+    if (campaign || !window.location.search.includes("lab=1")) return;
+    const raw = sessionStorage.getItem("arg.storyDraft");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as Partial<StoryCampaignDraft>;
+      setDraft((current) => ({
+        ...current,
+        ...parsed,
+        onlineClues:
+          parsed.onlineClues && parsed.onlineClues.length > 0
+            ? parsed.onlineClues
+            : current.onlineClues,
+        instoreClues:
+          parsed.instoreClues && parsed.instoreClues.length > 0
+            ? parsed.instoreClues
+            : current.instoreClues,
+      }));
+      setLabNotice(
+        "Story Lab draft loaded. The shop address, counter answer, final answer and any field marked INCOMPLETE still need your review. Nothing has been saved or published.",
+      );
+      sessionStorage.removeItem("arg.storyDraft");
+      window.history.replaceState({}, "", "/merchant/campaigns/new");
+    } catch {
+      setFormError("The Story Lab draft could not be read. Start from an empty form.");
+    }
+  }, [campaign]);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -395,8 +428,26 @@ export function CampaignForm({
   const errorCount = Object.keys(errors).length;
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+    <form
+      id="campaign-form"
+      onSubmit={handleSubmit}
+      className="grid scroll-mt-24 gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]"
+    >
       <div className="space-y-5">
+        {labNotice ? (
+          <div className="rounded-2xl border border-amber/35 bg-amber/[0.07] px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[12px] leading-relaxed text-amber/85">{labNotice}</p>
+              <button
+                type="button"
+                onClick={() => setLabNotice(null)}
+                className="shrink-0 text-[11px] text-amber/60 hover:text-amber"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        ) : null}
         {formError ? (
           <div className="rounded-2xl border border-rust/40 bg-rust/10 px-4 py-3 text-sm text-rust">
             <p className="font-semibold">{formError}</p>
@@ -858,7 +909,7 @@ export function CampaignForm({
               <div>
                 <p className="mono-label text-amber/80">Product clue ending</p>
                 <p className="mt-1 text-[11.5px] leading-relaxed text-amber/85">
-                  The pre-order deduction above must stand on its own. This product is the optional
+                  The optional deduction above must stand on its own. This product is the optional
                   handoff, not a condition for the free reward. Keep the clue out of every online
                   clue: it is only released after staff confirm the demo handoff.
                 </p>

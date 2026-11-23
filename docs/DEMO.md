@@ -1,6 +1,6 @@
 # Live demo runbook
 
-Status: P1 “Living ARG” walked end to end at the API/HTTP level — merchant campaign, operator publication, staged player trail, camera evidence, human verification, real Devnet payout, MagicBlock ER completion counter, extended deduction, product-clue request, staff handoff, real MagicBlock clue milestone, hidden ending, AI companion fallback, legacy coupon regression. Browser rendering and the live LLM path were **not** verified in the P1 session (see limitations).
+Status: P1 “Living ARG” plus P1 R2 “Playable Experience & Demo Polish”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. The live LLM path remains unverified because no provider key was available (see limitations).
 
 ## Setup
 
@@ -207,9 +207,16 @@ The companion is a server route (`/api/quests/[slug]/companion`) with GET histor
 
 Additive migrations add `optional_mode`, product fields, final-answer fields and the `product_claims` and `companion_messages` tables. The seed upgrades only the untouched seeded *The Ninth Cup*; existing campaigns, completions, payouts and coupons are preserved. `optional_mode = 'coupon'` is the default, so old campaigns keep their P0.4 behavior.
 
-### Browser testing status
+### Browser testing status (R2)
 
-No browser was available for the P1 session. The earlier P0.4 screenshots remain in `artifacts/`; there are **no P1 screenshots**. The 375/390 px layout was reviewed in code (single column, sticky optional jump, full-width companion drawer, wrapping reference/ticket fields) but not rendered or tapped. Treat mobile visual quality as unverified pending a Chromium pass.
+R2 used the Cloud Chromium browser against the dev server and a clean SQLite database (`/tmp/r2-browser-data/arg.db`). The local Playwright headless shell could not launch because this VM lacks `libnspr4`; the Cloud browser was the working path.
+
+- **The Ninth Cup, 375 px:** start → read 3 sources → 2 in-store clues → answer `5` → labelled simulation → operator approval → verified transition → optional deduction `11` → product reference → staff release → hidden ending `19`.
+- **The Midnight Jar, 390 px:** Story Lab concept → one-time form prefill → complete the merchant campaign → operator approval → read 3 sources → 2 in-store clues → answer `6` → operator approval → optional deduction `5` → reference `MIDNIG-CLUE-5P9P` → staff release → hidden ending `5`.
+- **Layout:** no horizontal overflow on `/`, `/quests`, quest detail, play, `/merchant` or `/staff` at 390/768/1280 px. Companion drawer and long references wrap; technical evidence starts collapsed.
+- **Not covered:** physical iOS/Android devices, real camera hardware, native browser chrome, screen readers. The coupon-mode browser path was not replayed in R2; it is covered by `tests/flow.test.ts`.
+
+Screenshots from the run live in the gitignored `artifacts/r2/` directory.
 
 ## Evidence to fill in
 

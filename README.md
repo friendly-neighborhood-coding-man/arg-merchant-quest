@@ -1,6 +1,6 @@
 # ARG Merchant Quest
 
-> **Status: P1 — Living ARG delivered.** The complete P0 journey still works: a merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. New in P1: the optional mystery can end in a **product-contained final clue** (simulated staff handoff), an **AI investigation companion** (live provider or a labelled scripted fallback), a **separate MagicBlock clue milestone** that the companion can see, a mobile-first adventure UI, and a **merchant story-drafting lab**. Legacy coupon campaigns and all existing records are preserved. Everything is a fictional Devnet demonstration.
+> **Status: P1 R2 — playable experience and demo polish.** The complete P0/P1 journey still works: a merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. The optional mystery can end in a **product-contained final clue** (simulated staff handoff), with an **AI investigation companion** (live provider or a labelled scripted fallback), a **separate MagicBlock clue milestone**, a mobile-first adventure UI, and a **merchant story-drafting lab**. R2 tightens the player hierarchy, mobile rendering, generic campaign wording, Story Lab handoff, staff workflows and portable tests. Legacy coupon campaigns and all existing records are preserved. Everything is a fictional Devnet demonstration.
 
 A real-world ARG advertising experience powered by Solana and MagicBlock. Merchants publish clue-driven campaigns; visitors discover approved online/in-store clues, solve a counter question, photograph the target object, and (later) earn a fixed visit reward plus a merchant-specific secret-menu coupon.
 
@@ -113,11 +113,26 @@ The accepted completion counter is untouched. A second, isolated milestone count
 
 ### D. UX and mobile polish
 
-The player page now opens with a hook and objective, separates online records from the in-store visit, reveals each clue with a deliberate action, shows a verified transition, puts **Claim reward** and the optional-product invitation before technical evidence, and pins a mobile jump bar to the optional mystery. Product-unlock and hidden-ending moments get dedicated cards. Transaction and ER evidence stay available in a secondary, collapsible technical section. Merchant/staff timestamps render in **Asia/Seoul** while storage stays UTC. Coupon summaries read real issued/redeemed/expired state.
+The player page opens with a hook and objective, separates online records from the in-store visit, reveals each clue with a deliberate action, and shows a campaign-aware verified transition. **Claim reward** and the optional-product invitation sit before technical evidence; the optional trail is an inline invitation rather than a sticky jump bar. Headings are generic campaign copy where the seeded story used to leak into shared UI, and duplicate article text ("the The Ninth Cup…") is removed. Product-unlock and hidden-ending moments get dedicated cards. Transaction and ER evidence stay in a secondary, collapsible technical section. Merchant/staff timestamps render in **Asia/Seoul** while storage stays UTC. Coupon summaries read real issued/redeemed/expired state.
 
 ### E. Merchant story lab
 
-`/merchant` includes a draft-only story lab. The merchant supplies business facts, product, season, props and atmosphere; the app returns three ARG concepts with premise, online clues, in-store observation, product clue, basic puzzle and hidden ending. Output is explicitly split into merchant-provided facts, labelled fictional material and unverified assumptions, and nothing is published automatically. It uses the same AI adapter, with deterministic local concepts when no key is configured.
+`/merchant` includes a draft-only story lab. The merchant supplies business facts, product, season, props and atmosphere; the app returns three ARG concepts with premise, online clues, in-store observation, product clue, basic puzzle and hidden ending. Output is explicitly split into merchant-provided facts, labelled fictional material and unverified assumptions, and nothing is published automatically. **Use this concept** maps one concept into the existing campaign form (no new schema); fields the lab cannot honestly supply — address, answers, final answer, demo price — are marked `INCOMPLETE —` for review. The form shows a one-time prefill banner, and the concept is merged once so a refresh cannot overwrite later edits. It uses the same AI adapter, with deterministic local concepts when no key is configured; product phrases are normalised so inputs like “the honey jar” do not produce “the the” copy.
+
+### P1 R2 browser evidence from this run
+
+A full build was exercised in the Cloud browser against a clean SQLite database (`/tmp/r2-browser-data/arg.db`) at **375, 390, 768 and 1280 px**. Chromium was the installed Playwright headless shell; the machine lacked `libnspr4`, so the Cloud browser was used instead.
+
+| Check | Result |
+| --- | --- |
+| *The Ninth Cup* full journey at 375 px | 3 online sources → 2 in-store clues → answer `5` → labelled simulation → operator approval → verified transition → optional deduction `11` → product reference → staff release → hidden ending `19` |
+| Merchant-made campaign at 390 px | Story Lab concept → form prefill → complete *The Midnight Jar* → operator approval → 3 online + 2 in-store clues → answer `6` → operator approval → optional deduction `5` → product reference `MIDNIG-CLUE-5P9P` → staff release → hidden ending `5` |
+| Horizontal overflow | none on `/`, `/quests`, quest detail, play, `/merchant`, `/staff` at 390/768/1280 px |
+| Mobile companion | opens as a bottom drawer, wraps long evidence text, closes back to the trail |
+| Technical evidence | payout/MagicBlock records stay collapsed by default |
+| Legacy coupon path | covered by `tests/flow.test.ts` (issuance after extended solve, single redemption); not replayed in the browser |
+
+Screenshots are written to `artifacts/r2/` during the run; that directory is gitignored. The R2 browser database had no treasury, counter program or AI key, so its payout, MagicBlock and live-companion states correctly showed **not configured / unavailable / scripted**. The prior P1 real-chain evidence below is unchanged.
 
 ### P1 evidence from this run
 
@@ -147,6 +162,9 @@ Requires Node.js 22.5+ (verified on Node 26). Persistence uses the built-in `nod
 ```bash
 npm install
 npm run dev          # http://localhost:3000
+npm test             # portable: compiles tests with tsc, then node --test
+npm run typecheck
+npm run build
 ```
 
 The database is created on first request at `.data/arg.db` and seeded with two fictional merchants and four campaigns: one published and playable (*The Ninth Cup*), one waiting for review, and two drafts. Evidence photos are written to `.data/evidence/` — nothing is committed.
@@ -204,9 +222,9 @@ To see the 3/5-minute hints without waiting, start a quest and then shift that s
 - The reward and the coupon are independent: a coupon is issued for a solved extended mystery even if the player never claims a payout or the payout fails.
 - Campaign slugs do not change on title edits; published campaigns remain uneditable.
 - **The product clue is a simulation.** There is no real purchase, POS, payment, inventory or delivery integration. `/staff` confirms a fictional handoff by hand, and the “physical” clue is a digital prop preview. The demo must not be presented as a real product offer.
-- **The live AI path was not exercised in the P1 session** because no provider key was available. The scripted fallback, provider-failure fallback and context filtering were tested; the OpenAI-compatible request path is implemented but unverified against a live model.
+- **The live AI path was not exercised** because no provider key was available in this environment. The scripted fallback, provider-failure fallback, reasoning prompts, repetition handling and context filtering were tested; the OpenAI-compatible request path (including the `max_completion_tokens` retry) is implemented but unverified against a live model.
 - The companion is a narrative aid, not an oracle or a moderation system. It can still be prompted adversarially, and its output is not fact-checked; it is given no private answers or locked clue text.
-- **P1 visual checks are limited:** no working browser was available in the final session, so the 375/390 px layouts and touch targets were reviewed in code but not rendered or tapped. The P0.4 Chromium checks remain the last real browser run.
+- **Browser checks are viewport-level, not device-level.** R2 was exercised in the Cloud Chromium browser at 375/390/768/1280 px, including the full Ninth Cup and Midnight Jar journeys. Physical iOS/Android devices, real cameras, screen readers and native browser chrome were not tested; the in-app camera fallback and labelled simulation were the only capture paths used.
 - The clue milestone uses the existing deployed program and a derived campaign id. It is a second counter account, not a general-purpose on-chain game state; conversation, location and answers are never written on chain.
 
 See [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md) for the remaining phases.

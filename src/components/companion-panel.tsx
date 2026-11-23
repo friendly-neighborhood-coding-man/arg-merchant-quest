@@ -180,7 +180,7 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
                 className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
               >
                 <div
-                  className={`max-w-[86%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed whitespace-pre-line ${
+                  className={`max-w-[86%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed break-words whitespace-pre-line ${
                     message.role === "user"
                       ? "border border-amber/25 bg-amber/[0.08] text-sage/90"
                       : "border border-line/70 bg-ink-soft/70 text-sage/80"
@@ -228,7 +228,7 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
           ) : null}
 
           <form
-            className="flex items-end gap-2 border-t border-line/60 px-3 py-2.5"
+            className="flex items-end gap-2 border-t border-line/60 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
             onSubmit={(event) => {
               event.preventDefault();
               void send(input);

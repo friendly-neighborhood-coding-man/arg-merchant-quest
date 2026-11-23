@@ -546,7 +546,7 @@ export function submitCampaignForReview(id: string, merchantId: string): Mutatio
         ok: false,
         status: 409,
         error:
-          "A product-clue mystery needs the pre-order deduction answer before it can be submitted.",
+          "A product-clue mystery needs the optional deduction answer before it can be submitted.",
       };
     }
     if (
