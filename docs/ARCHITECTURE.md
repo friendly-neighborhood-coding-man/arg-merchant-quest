@@ -149,3 +149,39 @@ R2 is a presentation and workflow pass with **no schema change**. `src/lib/story
 R2 final corrections. Story Lab placeholder rejection lives in `validateCampaignInput` (`placeholderPaths` walks nested clue content), so an `INCOMPLETE` value cannot be stored in either campaign mode, and `submitCampaignForReview` repeats the scan for drafts saved before that check existed. `getQuestView` serialises the final question only once the product-clue handoff has happened, which also keeps it out of the companion's context until then; `submitFinalAnswer` still validates the answer server-side against the campaign record. `ProductMystery` renders the per-claim `milestoneState` as a visible one-line indicator (`Committed` only for a committed value read back with both signatures; `Unconfirmed`, `Unavailable` and `Not recorded` otherwise) and keeps signatures in the collapsed technical record. The Story Lab shares a tiny client-only dirty check (`src/lib/form-dirty.ts`) with the campaign form, so replacing unsaved input needs an explicit confirmation.
 
 These caveats are for transparent UI/evidence, **not** pre-E2E research or security work.
+
+## P2 collective investigation gate (as built)
+
+```text
+ER clue milestone  ["counter", sha256("<campaign_id>#clue")]
+        |  create -> delegate -> ER increment -> commit   (unchanged P1 path)
+        v
+readGameplayMilestone(campaign.id, "clue")          read-only, server side
+        |                                             (no mutation per AI message)
+        v
+collective.ts  validCount -> live ER value
+        |  missing / malformed / unreachable / timeout -> phase "unavailable"
+        |  committed base value > live ER value        -> stale, committed wins
+        v
+phase: none (0) | first (1) | unlocked (>=2)
+        |
+        +--> QuestView.collective (status always; evidence ONLY when unlocked)
+        |        |
+        |        +--> /quests/[slug]/play   shared-investigation panel + story event
+        |        +--> companion provider prompt / scripted reply
+        |        +--> GET /api/quests/[slug]/investigation, companion GET/POST
+        |
+        +--> player's own product clue   (unaffected: still gated by their claim)
+```
+
+- The gate is the **live ER value**, not a local row or a client value. A handoff still needs the staff confirmation route, which is the only writer of the milestone.
+- `readCollectiveState` never throws; a failure becomes an `unavailable` state with an error string and no fragment. The play page and companion route await it with a 2.5 s timeout, so a slow RPC degrades to "locked", never to an error page.
+- `buildCollectiveState` is pure, so the 0/1/2+ thresholds, stale-read rule, malformed values and campaign isolation are unit-tested without a network.
+- `collective_authorizations` remembers a verified unlock per `(session_id, campaign_id)`. A row is written only from a trustworthy milestone read for that campaign; never from a browser value, a product claim or another session's row. On a later failed ER read a granted session keeps the fragment as `authority: "previously_verified"` with the stored count, source and timestamp, while a session without a grant stays `unavailable`.
+- Stored companion history is filtered by the same predicate (`sessionMayReadCollective`) before `GET /companion` and before the outbound provider request, matching the current fragment text and the pre-patch wording. Rows are retained in SQLite; nothing is deleted, and an old assistant message is never treated as authorization.
+- The fragment's `source` states it is a prewritten story fragment unlocked by the milestone. It is in-world fiction, not a compilation of real player observations; only The Ninth Cup has one, so other campaigns omit the panel.
+- The companion's context is reduced again in `companion.ts`: even a wrongly attached state can only expose the fragment when `sessionMayReadCollective` is true.
+- "ER live" and "Solana committed" are displayed separately, and the UI says the count is handoffs, not people. The app never claims that an ER increment is settled on Solana until the committed value is read back. A retained unlock is labelled as previously verified and never described as a fresh read.
+- `scripts/chain/p2-collective.mjs` repeats the evidence run (two handoffs, state before/between/after, Mara's permitted context, base-layer read, ER transaction lookup).
+
+Scope held: no VRF, no Private ER, no new on-chain program, no payment change, no general multiplayer infrastructure, and no additional token reward.

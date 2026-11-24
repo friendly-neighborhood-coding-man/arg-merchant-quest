@@ -34,6 +34,18 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
   const [mode, setMode] = useState<"live" | "scripted" | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
+
+  // P2: the shared-investigation panel can ask Mara to revisit an earlier theory.
+  useEffect(() => {
+    function handleAsk(event: Event) {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+      setOpen(true);
+      if (message) void sendRef.current(message);
+    }
+    window.addEventListener("arg:ask-mara", handleAsk);
+    return () => window.removeEventListener("arg:ask-mara", handleAsk);
+  }, []);
 
   useEffect(() => {
     if (!open || loaded) return;
@@ -109,6 +121,8 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
     }
     setBusy(false);
   }
+
+  sendRef.current = send;
 
   return (
     <>

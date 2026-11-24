@@ -6,11 +6,22 @@ import {
   companionModelName,
   listCompanionMessages,
 } from "@/lib/companion";
+import {
+  attachCollectiveInvestigation,
+  collectiveSummary,
+  personalInvestigation,
+  sessionMayReadCollective,
+} from "@/lib/collective";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
 import { getQuestView, getSession } from "@/lib/quest-store";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * The companion endpoint reads the campaign's MagicBlock clue milestone on the
+ * server before composing a reply. It never writes chain state, and the shared
+ * evidence fragment is part of the response only when the ER gate is unlocked.
+ */
 export async function GET(
   _request: Request,
   context: { params: Promise<{ slug: string }> },
@@ -25,10 +36,18 @@ export async function GET(
   const session = getSession(playerId, campaign.id);
   if (!session) return jsonError("Start the quest first.", 409);
 
+  const playerView = getQuestView(playerId, campaign);
+  const view = playerView ? await attachCollectiveInvestigation(playerView, campaign) : null;
+  // The same policy as the outbound provider request: restricted collective
+  // material is in this transcript only when this session may read it now.
+  const allowCollective = sessionMayReadCollective(view?.collective ?? null);
+
   return NextResponse.json({
-    messages: listCompanionMessages(session.id),
+    messages: listCompanionMessages(session.id, 40, { allowCollective }),
     mode: companionConfigured() ? "live" : "scripted",
     model: companionModelName(),
+    collective: collectiveSummary(view?.collective ?? null),
+    personal: view ? personalInvestigation(view) : null,
   });
 }
 
@@ -69,8 +88,9 @@ export async function POST(
     );
   }
 
-  const view = getQuestView(playerId, campaign);
-  if (!view) return jsonError("Start the quest first.", 409);
+  const playerView = getQuestView(playerId, campaign);
+  if (!playerView) return jsonError("Start the quest first.", 409);
+  const view = await attachCollectiveInvestigation(playerView, campaign);
 
   const result = await answerCompanionMessage(session.id, view, raw);
 
@@ -79,6 +99,7 @@ export async function POST(
     mode: result.mode,
     model: result.model,
     note: result.note,
+    collective: collectiveSummary(view.collective),
   });
 }
 

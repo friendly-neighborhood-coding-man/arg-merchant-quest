@@ -1,6 +1,6 @@
 # MVP — one working vertical slice
 
-**Priority: user experience and function integration, not exhaustive hardening.** P1 “Living ARG” and P1 R2 “Playable Experience & Demo Polish” are implemented; the live LLM path remains open.
+**Priority: user experience and function integration, not exhaustive hardening.** P1 “Living ARG”, P1 R2 “Playable Experience & Demo Polish” and P2 “MagicBlock Adaptive Intelligence” are implemented; the live LLM path remains open.
 
 ## P0 — full end-to-end
 
@@ -30,6 +30,17 @@
 - [x] Merchant story-drafting aid that separates facts, merchant input and fiction. *(P1 — `/merchant` story lab, draft only, three concepts, local fallback without a key. R2 adds **Use this concept**, which merges one draft into the existing form once and marks unsupplied required fields `INCOMPLETE —`.)*
 - [x] Playable-experience pass. *(R2 — objective-first player flow, campaign-aware transitions, generic headings, inline optional invitation, collapsed technical evidence, separated staff coupon/product workflows, mobile safeguards and overflow checks at 390/768/1280 px.)*
 - [x] Portable regression suite. *(R2 — `npm test` runs `node scripts/run-tests.mjs`: `tsc -p tsconfig.test.json`, then Node's built-in test runner over the enumerated `*.test.js` files, which Node 22 accepts where a bare directory does not. 30 tests.)*
+
+## P2 — MagicBlock adaptive intelligence
+
+- [x] Real ER milestone state drives what the AI companion may investigate. *(P2 — the campaign clue milestone `milestoneSeedCampaignId(campaignId, "clue")` is read on the server; 0 = none, 1 = first verified handoff, 2+ = shared evidence unlocked. The count records eligible handoffs, not unique people.)*
+- [x] Collective evidence cannot leak before the gate. *(P2 — the Ninth Cup fragment is attached to the view/provider prompt/API/HTML only when the live ER value reaches 2; locked states carry status but no text, and `companionContextSnapshot` proves the difference deterministically.)*
+- [x] Unavailable, stale or malformed ER reads do not unlock or fabricate progress. *(P2 — a missing/erroring/timed-out read is `unavailable`; an ER value behind the committed base value is marked stale and the committed value wins; both values are shown.)*
+- [x] Player-facing shared investigation. *(P2 — compact panel with personal progress, the collective milestone, locked/unlocked state, ER-live versus Solana-committed values, a story event on unlock, and an **Ask Mara to revisit the earlier theories** action.)*
+- [x] Accurate collective provenance. *(P2 R1 — the fragment is labelled “Prewritten story fragment · unlocked when the campaign's MagicBlock milestone reaches 2.” It is an in-world shop ledger page, never presented as compiled player observations, and names no answer.)*
+- [x] Verified unlocks are remembered per session. *(P2 R1 — `collective_authorizations` stores `(campaign, session, unlocked_at, verified_count, source, last_verified_at)`. A granted session keeps the fragment through an ER outage labelled “previously verified” with its count and timestamp; a session without a grant stays locked, including during the same outage. Stored history is filtered by the same policy for `GET /companion` and the provider request.)*
+- [x] No panel without a fragment. *(P2 R1 — only The Ninth Cup has collective content; other campaigns render no shared-investigation panel instead of a generic unlock teaser.)*
+- [x] Preserved behaviour and separate identities. *(P2 — a player's own product clue still depends only on their claim; product-clue mode still never issues a coupon; the fixed reward, hidden ending and scripted guidance are unchanged. 52 tests.)*
 
 ## P2 — demo proof
 

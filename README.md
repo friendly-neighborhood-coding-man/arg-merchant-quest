@@ -1,6 +1,6 @@
 # ARG Merchant Quest
 
-> **Status: P1 R2 — playable experience and demo polish.** The complete P0/P1 journey still works: a merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. The optional mystery can end in a **product-contained final clue** (simulated staff handoff), with an **AI investigation companion** (live provider or a labelled scripted fallback), a **separate MagicBlock clue milestone**, a mobile-first adventure UI, and a **merchant story-drafting lab**. R2 tightens the player hierarchy, mobile rendering, generic campaign wording, Story Lab handoff, staff workflows and portable tests. Legacy coupon campaigns and all existing records are preserved. Everything is a fictional Devnet demonstration.
+> **Status: P2 — MagicBlock adaptive intelligence.** The complete P0/P1 journey still works: a merchant creates a campaign, an operator publishes it, a player walks a staged online → in-store trail, submits camera evidence, an operator verifies it, and the player claims a **real SPL transfer on Devnet**. On approval the app increments a campaign completion counter **on a MagicBlock Ephemeral Rollup** and commits it back to Solana. The optional mystery can end in a **product-contained final clue** (simulated staff handoff), with an **AI investigation companion** (live provider or a labelled scripted fallback), a **separate MagicBlock clue milestone**, a mobile-first adventure UI, and a **merchant story-drafting lab**. R2 tightened the player hierarchy, mobile rendering, generic campaign wording, Story Lab handoff, staff workflows and portable tests. P2 makes the campaign's real MagicBlock clue milestone a **collective investigation gate**: once two eligible handoffs are recorded on the ER, a shared evidence fragment becomes available to the AI companion and to the player, and it is absent everywhere until then. Legacy coupon campaigns and all existing records are preserved. Everything is a fictional Devnet demonstration.
 
 A real-world ARG advertising experience powered by Solana and MagicBlock. Merchants publish clue-driven campaigns; visitors discover approved online/in-store clues, solve a counter question, photograph the target object, and (later) earn a fixed visit reward plus a merchant-specific secret-menu coupon.
 
@@ -144,6 +144,67 @@ Screenshots are written to `artifacts/r2/` during the run; that directory is git
 | Milestone ER increment | `43YZJb8PjL1ZxoyQka2MYRmwB1wWj1hvNYBYrFwk8b3ppmRsCxoegxnsnZnqXLtV3kHHuxrDxAEBhHSqAtgrG8Tf` |
 | Milestone commit | `5QcNv2iYiuQsw6UYPfjaj2qBs7suU4dsR72JwfJoEJeqJ1y4oL2f8Kwyah11jJRfU3RpiePcJC7vQVijBDvwL3dd` (committed value 1, endpoint `https://devnet-as.magicblock.app/`) |
 
+## What P2 adds
+
+### ER-driven collective investigation
+
+The existing campaign clue milestone `milestoneSeedCampaignId(campaignId, "clue")` is now also the **collective investigation gate**. It is the same deployed program and PDA scheme; no new program, account or transaction type was added.
+
+- count 0 → no collective discovery
+- count 1 → the first verified clue handoff is recorded; shared evidence stays locked
+- count 2+ → the collective investigation evidence unlocks
+
+The count records eligible handoffs, not unique real-world people. A handoff is still only possible through the app's staff confirmation, and the player never supplies a count.
+
+The milestone is read **on the server** for every play, companion and investigation request through `readGameplayMilestone`, the same MagicBlock ER integration that records it. The **live ER value is the gate**: a missing, malformed, unreachable or timed-out read is `unavailable` and cannot unlock anything. If the committed base-layer value is higher than the live ER value the read is stale, the committed value wins, and the UI shows both numbers. No settlement is claimed before the commit is read back on Solana.
+
+### A deterministic context gate for Mara
+
+`src/lib/collective.ts` produces one state object (phase, count, ER-live value, committed value, endpoint, staleness, error). The prewritten Ninth Cup fragment is copied into the player view, provider messages, JSON APIs and rendered HTML **only** when this session's gate is unlocked; locked states carry status but no fragment. `companionContextSnapshot` and `buildProviderMessages` make the difference testable without a live model.
+
+After unlock Mara compares the shared record with the player's observations, challenges the assumption behind their theory and asks a specific next question. The scripted guide does the same without a key, and **Ask Mara to revisit the earlier theories** opens the companion with that question. Before unlock she says a second handoff is needed and never guesses at the content.
+
+### Player-facing shared investigation
+
+A compact panel under the quest header separates personal progress from the campaign-wide milestone, shows `ER live` and `Solana committed` values with the endpoint, labels the count as handoffs (not people), and explains why the evidence is locked. On unlock it shows a small story event with the shared record and the revisit button. When the chain is unavailable the panel says so and normal play plus scripted guidance keep working. `GET /api/quests/[slug]/investigation` exposes the same read-only state, and the companion responses include it. Campaigns without a configured fragment (everything except The Ninth Cup) render no panel at all, rather than a “2 handoffs unlock” teaser for a record that does not exist.
+
+### Accurate provenance and session-scoped unlocks
+
+The fragment is **prewritten story material**, labelled everywhere as “Prewritten story fragment · unlocked when the campaign's MagicBlock milestone reaches 2.” It is an in-world ledger page written by the shop: it never claims observations from real players, names no answer, and does not describe the product clue as non-arithmetic.
+
+A verified unlock is remembered per `(session, campaign)` in `collective_authorizations` (`collective_unlocked_at`, `verified_count`, `verification_source`, `last_verified_at`). The row is written only after a trustworthy read of that campaign's own milestone, so a new session at count 1, a client-supplied count, another session's row or a local product claim cannot unlock anything.
+
+| Situation | Result |
+| --- | --- |
+| New session, live ER count 2+ | unlocked `live`; grant recorded |
+| Session with a grant, ER unreachable | unlocked `previously_verified`; earlier count and timestamp shown, current ER read labelled unavailable |
+| Session without a grant, ER unreachable | `unavailable`, evidence locked |
+| Grant for campaign A, request for campaign B | campaign B stays locked |
+
+The same policy governs the companion transcript. Stored messages containing a fragment (including the pre-patch wording) stay in SQLite but are excluded from `GET /companion` and from the outbound provider request unless this session is currently authorized. An old assistant message is never treated as authorization.
+
+### P2 live evidence (2026-11-24, Devnet)
+
+Two separate eligible handoffs were executed through the app's own HTTP API for the seeded Ninth Cup campaign. Its campaign id is fixed by the seed, so the milestone account already held 1 from the P1 run: the recorded transition is 1 → 2 (which unlocks) → 3.
+
+| Step | Value |
+| --- | --- |
+| Milestone PDA | `UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt` |
+| ER endpoint | `https://devnet-as.magicblock.app/` |
+| Before any handoff | phase `first`, ER live 1, Solana committed 1, **locked** |
+| First handoff ER increment | `3GJXHo7nT6WSqMdMctPngQkYWVfko5pChP7KD8FGT97SZrhJPhJg4VPTZpitV84LXAcF94pexZV5HfN7HimkcGEL` |
+| First handoff commit | `yaeFreKi9sgJBrvi8Fr1GtX8bjEAWGnYEDtTNY1FFLBuYPYKmBYLe5MVUbRQ8A8CUbRcKi42zLRkLe3vBQpmU9w` |
+| After first | phase `unlocked`, ER live 2, Solana committed 2 |
+| Second handoff ER increment | `3NWPKNjemSomL4pYgaomg7a5Afe6MAr3Uh9tUUwACAztpMwSbbNF4NdLmZ5aYR3Jkzjqg2U6w6G3fhzA2bJbLSNF` |
+| Second handoff commit | `2UoBdbmrRfPEi7NQz94tzje8ieLjZLZ9CHDEwKacDoT9MDPSnkv3EWH3PZsF7EyfKxCtXqRsN18RfDSE39s1bjej` |
+| After second | phase `unlocked`, ER live 3, Solana committed 3 |
+| Mara before | “1 eligible handoff … A second verified handoff is still needed” — no shared text |
+| Mara after | quotes the shared record, compares it with “The April post”, asks which assumption to test |
+
+A separate throwaway campaign id (`cmp_p2_locked`) produced the 0 → 1 case on its own new milestone account `A1MWoo2ksY6yK1UxKpZ1stqXUqHUijzKL5QF5PadY1Xs`: create `515nrHyDy6RhJTE9aLFV29puWUSiqe9q9kiDoKLExj5BJUBhGSYZC1n8ZBKNxom7fuacErzYHsUmuDtBNWD4CrXi`, delegate `38Hu6AAm9vgCaAWPfM7Km18Vmjw32W7V7kJ5JotiC3LqRjktuaaiSxwd6HY3CSePtY6QFwrGUu6wZCZ8pPhNwWvo`, ER increment `5PT8oQFVWT811pgx2iwZrWje4bzzCcT8ZbQnSnvB5wySfTkJ8ntoxKXsy3JJBLwhm4wNstBBan68Srb6ActkqUqE`, commit `66WxZ16asDkZgnXiq7AvvSA25cES1CKLjuoD2naDSdhKbUJjN7udBMkHbvH4jYYX2SvggYrDbD9JDzteGEWtpcS3`, committed value 1. The server read phase `first`, count 1, **locked**, and Mara still asked for a second handoff.
+
+`node scripts/chain/p2-collective.mjs [baseUrl]` repeats the two-handoff run against a server that has the deployed program and treasury configured. The Chromium check opened the play page in both states: at count 1 the panel read “1 handoff · still locked” with `ER live 1 · Solana committed 1` and the page contained no shared evidence; at count 3 it showed the story event and the revisit button, and clicking the button opened Mara with the shared record in her reply.
+
 ## Repository layout
 
 - `src/app/` — the single web app: merchant, operator, player, staff and demo-source routes plus API routes
@@ -226,6 +287,10 @@ To see the 3/5-minute hints without waiting, start a quest and then shift that s
 - The companion is a narrative aid, not an oracle or a moderation system. It can still be prompted adversarially, and its output is not fact-checked; it is given no private answers or locked clue text.
 - **Browser checks are viewport-level, not device-level.** R2 was exercised in the Cloud Chromium browser at 375/390/768/1280 px, including the full Ninth Cup and Midnight Jar journeys. Physical iOS/Android devices, real cameras, screen readers and native browser chrome were not tested; the in-app camera fallback and labelled simulation were the only capture paths used.
 - The clue milestone uses the existing deployed program and a derived campaign id. It is a second counter account, not a general-purpose on-chain game state; conversation, location and answers are never written on chain.
+- **The collective count is not a user count.** It counts eligible handoffs on one campaign's milestone; the same visitor could appear twice with a new browser session, and different players can be counted on different campaigns. It is not proof of demand, reach or unique participation.
+- **Shared evidence is prewritten story material, not generated from other players' behaviour.** The fragment is a fixed Ninth Cup text attached when the threshold is crossed. Campaigns without a fragment still show the milestone but receive no invented evidence.
+- The collective gate requires a readable live ER. If MagicBlock is unreachable the shared evidence stays locked even when an older committed value is visible; the panel reports both values so the distinction is visible rather than hidden.
+- Each play/companion/investigation request performs read-only RPC calls (with a 2.5 s timeout). There is no cache, indexer or background job, so a slow RPC shortens that request's patience; it never changes game state.
 
 See [MVP](docs/MVP.md) and [AGENTS.md](AGENTS.md) for the remaining phases.
 

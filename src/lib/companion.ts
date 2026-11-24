@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
 import { milestoneState, type MilestoneState } from "./milestone";
+import {
+  containsRestrictedCollective,
+  sessionMayReadCollective,
+  type CollectiveAuthority,
+  type CollectivePhase,
+} from "./collective";
 import type { QuestView } from "./quest-store";
 
 /**
@@ -49,7 +55,18 @@ function providerUrl(): string {
   return `${base}/chat/completions`;
 }
 
-export function listCompanionMessages(sessionId: string, limit = 40): CompanionMessage[] {
+/**
+ * Stored transcript for this session. Restricted collective material is kept in
+ * the database but excluded from the result unless this session is currently
+ * authorized to read it, so neither the companion API nor the outbound provider
+ * request can be fed a fragment the session has no grant for. An old assistant
+ * message is not by itself authorization.
+ */
+export function listCompanionMessages(
+  sessionId: string,
+  limit = 40,
+  options: { allowCollective?: boolean } = {},
+): CompanionMessage[] {
   const rows = getDb()
     .prepare(
       `SELECT role, content, mode, created_at FROM companion_messages
@@ -61,12 +78,14 @@ export function listCompanionMessages(sessionId: string, limit = 40): CompanionM
     mode: string;
     created_at: string;
   }>;
-  return rows.map((row) => ({
-    role: row.role,
-    content: row.content,
-    mode: row.mode,
-    createdAt: row.created_at,
-  }));
+  return rows
+    .filter((row) => options.allowCollective === true || !containsRestrictedCollective(row.content))
+    .map((row) => ({
+      role: row.role,
+      content: row.content,
+      mode: row.mode,
+      createdAt: row.created_at,
+    }));
 }
 
 export function saveCompanionMessage(
@@ -114,7 +133,52 @@ export interface CompanionContext {
     committedValue: number | null;
     counterAccount: string | null;
   } | null;
+  /**
+   * P2 campaign-wide collective gate. `evidence` is populated only when the
+   * gate is unlocked; a locked or unavailable read carries status but no text.
+   */
+  collective: {
+    phase: CollectivePhase;
+    threshold: number;
+    count: number | null;
+    countSource: "er" | "base" | "stored" | null;
+    erLive: number | null;
+    committed: number | null;
+    stale: boolean;
+    /** live = verified in this request; previously_verified = stored grant. */
+    authority: CollectiveAuthority;
+    lastVerifiedAt: string | null;
+    configured: boolean;
+    error: string | null;
+    evidence: { title: string; text: string; source: string } | null;
+  } | null;
   messages: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+/**
+ * The collective block is reduced to a status object before it reaches a
+ * provider. The fragment is copied only for an unlocked state, so a locked
+ * read cannot leak shared evidence through the context even if a caller
+ * attached an inconsistent state by mistake.
+ */
+function collectiveContext(view: QuestView): CompanionContext["collective"] {
+  const state = view.collective;
+  if (!state) return null;
+  const unlocked = sessionMayReadCollective(state);
+  return {
+    phase: state.phase,
+    threshold: state.threshold,
+    count: state.count,
+    countSource: state.countSource,
+    erLive: state.erLive,
+    committed: state.committed,
+    stale: state.stale,
+    authority: state.authority,
+    lastVerifiedAt: state.lastVerifiedAt,
+    configured: state.configured,
+    error: state.error,
+    evidence: unlocked ? (state.evidence ?? null) : null,
+  };
 }
 
 function buildContext(view: QuestView, messages: CompanionMessage[]): CompanionContext {
@@ -157,6 +221,7 @@ function buildContext(view: QuestView, messages: CompanionMessage[]): CompanionC
           counterAccount: view.optional.claim.chain.counterAccount,
         }
       : null,
+    collective: collectiveContext(view),
     messages: messages.slice(-MAX_HISTORY).map((message) => ({
       role: message.role,
       content: message.content,
@@ -169,6 +234,45 @@ function revealedClues(view: QuestView): string[] {
   for (const clue of view.trail.online) lines.push(`Online — ${clue.title}: ${clue.body}`);
   for (const clue of view.trail.instore) lines.push(`In store — ${clue.title}: ${clue.body}`);
   for (const clue of view.extended.clues) lines.push(`Optional — ${clue.title}: ${clue.body}`);
+  return lines;
+}
+
+function collectivePromptLines(context: CompanionContext): string[] {
+  const shared = context.collective;
+  if (!shared) {
+    return [
+      "SHARED INVESTIGATION: not read in this request. Shared evidence is locked; do not describe it.",
+    ];
+  }
+  if (!shared.configured) {
+    return [
+      "SHARED INVESTIGATION: this campaign has no shared investigation fragment configured. Say so plainly; never invent collective evidence.",
+    ];
+  }
+  const status =
+    shared.phase === "unlocked" && shared.authority === "previously_verified"
+      ? `unlocked for this session as previously verified at ${shared.lastVerifiedAt ?? "an earlier request"} with ${shared.count ?? "unknown"} eligible clue handoffs; the current Ephemeral Rollup read is unavailable (${shared.error ?? "no answer"})`
+      : shared.phase === "unlocked"
+        ? `unlocked — ${shared.count ?? "unknown"} eligible clue handoffs (ER live ${shared.erLive ?? "unreadable"}, Solana committed ${shared.committed ?? "not read"})${shared.stale ? "; the ER read is behind the committed value" : ""}`
+        : shared.phase === "first"
+          ? `locked — 1 eligible clue handoff, ${shared.threshold} needed (ER live ${shared.erLive ?? "unreadable"}, Solana committed ${shared.committed ?? "not read"})`
+          : shared.phase === "none"
+            ? `locked — no eligible clue handoffs recorded yet (ER live 0, Solana committed ${shared.committed ?? "not read"})`
+            : `unavailable — the MagicBlock milestone could not be read (Solana committed ${shared.committed ?? "not read"}); shared evidence stays locked`;
+  const lines = [
+    `SHARED INVESTIGATION (campaign-wide MagicBlock clue milestone): ${status}. The count records eligible handoffs, not unique people.`,
+  ];
+  if (shared.phase === "unlocked" && shared.evidence) {
+    lines.push(`SHARED EVIDENCE (unlocked): ${shared.evidence?.title} — ${shared.evidence?.text}`);
+    lines.push(`SHARED EVIDENCE PROVENANCE: ${shared.evidence?.source}`);
+    if (shared.authority === "previously_verified") {
+      lines.push(
+        "Say that the current ER read is unavailable and that this is the session's earlier verified unlock. Never imply a fresh verification just happened.",
+      );
+    }
+  } else {
+    lines.push("SHARED EVIDENCE: locked or unavailable. Its content must not appear in your reply.");
+  }
   return lines;
 }
 
@@ -193,6 +297,11 @@ function systemPrompt(context: CompanionContext, view: QuestView): string {
     "- Do not repeat your previous reply. If the player circles the same point, name a concrete detail to test instead.",
     "- ER CLUE MILESTONE state 'committed' means this player's clue handoff was incremented on the MagicBlock Ephemeral Rollup and committed back to Solana. The committed value is the campaign-wide cumulative count of released clues, so any value of 1 or more is valid. Describe it as game state, not as proof of a real purchase.",
     "- State 'unconfirmed' or 'unavailable' means the clue was released locally but its on-chain record is not confirmed; say so plainly. Never treat the counter's value alone as proof of this player's handoff.",
+    "- SHARED INVESTIGATION is the campaign-wide MagicBlock clue count: eligible handoffs, not unique people. Its status is safe to discuss. Its evidence is readable only when the phase is 'unlocked'.",
+    "- Shared evidence is LOCKED unless the phase says unlocked. Never guess, paraphrase or invent its content, and never treat the count alone as unlocked evidence. If the count is 1, say a second verified handoff is still needed.",
+    "- When shared evidence is unlocked, compare it with this player's own observations, name where it supports or contradicts the theory they stated, and ask one more specific question. Do not change the campaign's answers or reveal them.",
+    "- Shared evidence is prewritten story material written by the shop, unlocked by the campaign's milestone. Never present it as observations collected from real players or real purchases.",
+    "- If the shared state is marked previously verified, the current ER read failed: keep the earlier access, state the last verified count and time, and never describe it as a fresh verification.",
     "- The free reward is fixed and unaffected by the product, hints or this conversation.",
     "",
     `CAMPAIGN: ${context.campaignTitle} at ${context.shopName}, ${context.shopArea}.`,
@@ -205,6 +314,7 @@ function systemPrompt(context: CompanionContext, view: QuestView): string {
     `PRODUCT CLUE RELEASED: ${context.clueReleased}${context.productClue ? `\nPRODUCT CLUE (released): ${context.productClue}` : ""}.`,
     `FINAL QUESTION: ${context.finalQuestion || "none"} (solved: ${context.finalSolved}).`,
     `ER CLUE MILESTONE: ${context.milestone ? `${context.milestone.state}${context.milestone.state === "committed" ? `, campaign-wide committed count ${context.milestone.committedValue}` : ""}` : "not recorded"}.`,
+    ...collectivePromptLines(context),
     `RELEASED HINTS:\n${hints}`,
     "",
     "REVEALED CLUES:",
@@ -312,6 +422,51 @@ function productLabel(view: QuestView): string {
 }
 
 /**
+ * Deterministic description of the shared investigation gate. Safe in every
+ * state: it describes the milestone but never prints the evidence fragment
+ * unless the gate is unlocked.
+ */
+export function collectiveSentence(view: QuestView): string {
+  const shared = view.collective;
+  if (!shared) {
+    return "The campaign's shared investigation record was not read, so its evidence stays locked.";
+  }
+  if (!shared.configured) {
+    return "This campaign has no shared investigation configured, so there is no collective evidence to compare.";
+  }
+  switch (shared.phase) {
+    case "unlocked":
+      if (shared.authority === "previously_verified") {
+        return `This session verified the campaign's MagicBlock clue milestone at ${shared.count} eligible handoffs on ${shared.lastVerifiedAt}, but the current Ephemeral Rollup read is unavailable, so the shared evidence stays available from that earlier verification. It is not a fresh read.`;
+      }
+      return `The campaign's MagicBlock clue milestone is at ${shared.count} eligible handoffs (ER live ${shared.erLive ?? "unreadable"}, Solana committed ${shared.committed ?? "not read"}), so the shared evidence is unlocked.`;
+    case "first":
+      return `The campaign's MagicBlock clue milestone has 1 eligible handoff (Solana committed ${shared.committed ?? "not read"}). A second verified handoff is still needed before any shared evidence can be used.`;
+    case "none":
+      return "The campaign's MagicBlock clue milestone has no eligible handoff yet, so there is no shared evidence to investigate.";
+    default:
+      return "The MagicBlock clue milestone could not be read just now, so shared evidence is unavailable. I will not guess at it.";
+  }
+}
+
+/** Scripted answer for collective / revisit-the-theory questions. */
+function collectiveReply(view: QuestView): string {
+  const shared = view.collective;
+  if (!shared) return collectiveSentence(view);
+  if (shared.phase !== "unlocked") {
+    return `${collectiveSentence(view)} While it stays locked, treat your own theory as a hypothesis: ${followUpFor(view)}`;
+  }
+  if (!shared.evidence) {
+    return `${collectiveSentence(view)} This campaign has no shared evidence fragment, so there is nothing new to compare. Stay with the clues you already have.`;
+  }
+  const first = revealedClues(view)[0]?.split(": ")[0] ?? null;
+  const comparison = first
+    ? `Compare that with “${first}”.`
+    : "You have not revealed a clue yet, so read the first public record and bring one detail back; then we can test it against this.";
+  return `${collectiveSentence(view)} The shop's record says: “${shared.evidence.text}” ${comparison} Does your current theory say what the reserved column is for, or does it fold that column into the same count it already had? The sleeve is the only place that can confirm which reading is right.`;
+}
+
+/**
  * One sentence about this claim's clue milestone. It is based on the evidence
  * stored for this player's handoff, never on the campaign-wide counter alone.
  */
@@ -399,6 +554,11 @@ function scriptedReplyOnce(
       );
     }
     if (view.optional.final.solved) parts.push("We reached the hidden ending.");
+    if (view.collective?.phase === "unlocked") {
+      parts.push(
+        "A second verified handoff has opened the shared investigation evidence; ask me to revisit the earlier theories against it.",
+      );
+    }
     return { reply: parts.join(" "), mode: "scripted" };
   }
 
@@ -558,6 +718,23 @@ function scriptedReplyOnce(
     };
   }
 
+  if (
+    asked([
+      "collective",
+      "shared",
+      "other investigator",
+      "other player",
+      "everyone",
+      "community",
+      "revisit",
+      "earlier theor",
+      "compare theor",
+      "what do others",
+    ])
+  ) {
+    return { reply: collectiveReply(view), mode: "scripted" };
+  }
+
   if (asked(["product", "order", "buy", "purchase", "sleeve", "cup", "clue"])) {
     if (view.optional.mode !== "product_clue") {
       return {
@@ -602,10 +779,13 @@ function scriptedReplyOnce(
   }
 
   if (asked(["magicblock", "blockchain", "chain", "on-chain", "er"])) {
+    const ownMilestone =
+      milestoneSentence(view) ||
+      "The MagicBlock counter records the campaign completion and, later, the clue handoff. It does not contain our conversation or the answer. No clue handoff has been recorded for you yet.";
+    // The campaign-wide gate is added only when this view was read from the ER,
+    // so an older view keeps its original wording.
     return {
-      reply:
-        milestoneSentence(view) ||
-        "The MagicBlock counter records the campaign completion and, later, the clue handoff. It does not contain our conversation or the answer. No clue handoff has been recorded for you yet.",
+      reply: view.collective ? `${ownMilestone} ${collectiveSentence(view)}` : ownMilestone,
       mode: "scripted",
     };
   }
@@ -629,7 +809,9 @@ export async function generateCompanionReply(
   message: string,
 ): Promise<CompanionReply> {
   const clean = message.trim().slice(0, MAX_MESSAGE_CHARS);
-  const history = listCompanionMessages(view.sessionId);
+  const history = listCompanionMessages(view.sessionId, 40, {
+    allowCollective: sessionMayReadCollective(view.collective),
+  });
   const context = buildContext(view, history);
 
   if (!companionConfigured()) {
@@ -647,6 +829,19 @@ export async function generateCompanionReply(
       note: `Live AI was unavailable (${(error as Error).message}). The scripted guide answered instead.`,
     };
   }
+}
+
+/**
+ * Deterministic provider context, for tests and for recorded evidence. The
+ * collective block contains the shared fragment only when the ER gate is
+ * unlocked, so the same snapshot proves both the locked and unlocked cases
+ * without needing a live model.
+ */
+export function companionContextSnapshot(
+  view: QuestView,
+  messages: CompanionMessage[] = [],
+): CompanionContext {
+  return buildContext(view, messages);
 }
 
 /**
