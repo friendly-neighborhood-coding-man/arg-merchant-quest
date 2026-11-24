@@ -56,7 +56,8 @@ export function parseStoryLabInput(raw: unknown): StoryLabInput {
 function localDrafts(input: StoryLabInput): StoryConcept[] {
   const shop = input.businessName || "the shop";
   const place = input.location || "the neighbourhood";
-  const product = input.product || "the signature item";
+  const product = input.product.replace(/^(the|a|an)\s+/i, "") || "signature item";
+  const productTitle = product.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
   const props = input.props || "a paper sleeve, label or receipt insert";
   const season = input.season || "this season";
   const atmosphere = input.atmosphere || "quiet and slightly out of time";
@@ -66,7 +67,7 @@ function localDrafts(input: StoryLabInput): StoryConcept[] {
 
   return [
     {
-      title: `The ${product} That Was Never Served`,
+      title: `The ${productTitle} That Was Never Served`,
       premise: `${shop} keeps one ${product} aside every closing. Nobody orders it, and the staff will not say who it is for. A regular's old note ties it to a number the shop has stopped saying aloud. ${history}`,
       onlineClues: [
         `A public post about ${season} mentions the ${product} in the same sentence as a closing-time ritual.`,

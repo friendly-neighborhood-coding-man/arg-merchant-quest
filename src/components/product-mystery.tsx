@@ -4,10 +4,49 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { QuestView } from "@/lib/quest-store";
-import { formatDateTime } from "@/lib/format";
+import { milestoneState } from "@/lib/milestone";
+import { formatDateTimeKst } from "@/lib/format";
 
 function erLink(signature: string, endpoint: string | null): string {
   return `/chain/er/${signature}${endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : ""}`;
+}
+
+type ClaimChain = NonNullable<NonNullable<QuestView["optional"]["claim"]>["chain"]>;
+type MilestoneTone = "mint" | "amber" | "sage";
+
+const MILESTONE_TONE: Record<MilestoneTone, string> = {
+  mint: "border-mint/35 bg-mint/[0.08] text-mint/90",
+  amber: "border-amber/35 bg-amber/[0.07] text-amber/85",
+  sage: "border-line/80 bg-ink/60 text-sage/60",
+};
+
+/**
+ * One short, always-visible line naming this handoff's real MagicBlock state.
+ * Only a milestone that was committed and read back on the base layer, with the
+ * increment and commit it belongs to, says "Committed"; every other state is
+ * labelled with what actually happened. Signatures stay in the record below.
+ */
+function milestoneSummary(chain: ClaimChain | null): { text: string; tone: MilestoneTone } {
+  const state = milestoneState(chain);
+  if (state === "committed") {
+    return {
+      text: `MagicBlock ER · Committed · Campaign count ${chain?.committedValue}`,
+      tone: "mint",
+    };
+  }
+  if (state === "unconfirmed") {
+    return { text: "MagicBlock ER · Unconfirmed · commit not read back on Solana", tone: "amber" };
+  }
+  if (state === "unavailable") {
+    return {
+      text: "MagicBlock ER · Unavailable · clue release is local only",
+      tone: "sage",
+    };
+  }
+  return {
+    text: "MagicBlock ER · Not recorded · no milestone transaction for this handoff",
+    tone: "sage",
+  };
 }
 
 /**
@@ -27,6 +66,7 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
 
   const claim = optional.claim;
   const released = claim?.status === "handed_off";
+  const milestone = released ? milestoneSummary(claim.chain) : null;
 
   async function requestProduct() {
     setBusy(true);
@@ -107,7 +147,7 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
         {!claim ? (
           <div className="mt-4 rounded-xl border border-amber/25 bg-amber/[0.06] p-4">
             <p className="text-[13px] leading-relaxed text-sage/80">
-              Request the <span className="text-white/90">{optional.productName}</span>
+              Request <span className="text-white/90">{optional.productName}</span>
               {optional.priceLabel ? (
                 <span className="text-sage/55"> · demo price {optional.priceLabel}</span>
               ) : null}
@@ -131,7 +171,7 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
             </p>
             <p className="mt-2 text-[12.5px] leading-relaxed text-sage/70">
               {released
-                ? `Released ${formatDateTime(claim.handedOffAt)}${claim.handedOffBy ? ` by ${claim.handedOffBy}` : ""}. The clue is below.`
+                ? `Released ${formatDateTimeKst(claim.handedOffAt)} KST${claim.handedOffBy ? ` by ${claim.handedOffBy}` : ""}. The clue is below.`
                 : "Show this reference at the staff counter. Staff confirm the fictional serving condition once; the clue then appears here."}
             </p>
             {!released ? (
@@ -139,23 +179,47 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
                 Open the staff counter →
               </Link>
             ) : null}
+            {milestone ? (
+              <p
+                className={`mt-3 block w-fit max-w-full rounded-lg border px-2.5 py-1.5 font-mono text-[10.5px] leading-snug ${MILESTONE_TONE[milestone.tone]}`}
+              >
+                {milestone.text}
+              </p>
+            ) : null}
             {claim.chain?.counterAccount ? (
-              <div className="mt-3 border-t border-line/60 pt-2.5 text-[11px] leading-relaxed text-sage/50">
-                MagicBlock clue milestone:{" "}
-                <span className={claim.chain.committedValue !== null ? "text-mint/80" : "text-amber/80"}>
-                  {claim.chain.status ?? "pending"}
-                  {claim.chain.committedValue !== null
-                    ? ` · committed value ${claim.chain.committedValue}`
-                    : ""}
-                </span>
+              <details className="mt-3 border-t border-line/60 pt-2.5 text-[11px] leading-relaxed text-sage/50">
+                <summary className="cursor-pointer text-sage/55">
+                  Technical record · MagicBlock clue milestone{" "}
+                  <span className={milestoneState(claim.chain) === "committed" ? "text-mint/80" : "text-amber/80"}>
+                    ({milestoneState(claim.chain).replace("_", " ")})
+                  </span>
+                </summary>
+                <p className="mt-1.5">
+                  This is the on-chain game state for the demo handoff. It does not prove a real
+                  purchase, and the clue is already released locally.
+                </p>
+                {milestoneState(claim.chain) === "committed"
+                  ? ` Campaign-wide released-clue count: ${claim.chain.committedValue}.`
+                  : ""}
                 {claim.chain.incrementSignature ? (
                   <>
-                    {" · "}
+                    {" "}
                     <a
                       className="link"
                       href={erLink(claim.chain.incrementSignature, claim.chain.erEndpoint)}
                     >
-                      verify ER update
+                      verify ER increment
+                    </a>
+                  </>
+                ) : null}
+                {claim.chain.commitSignature ? (
+                  <>
+                    {" · "}
+                    <a
+                      className="link"
+                      href={erLink(claim.chain.commitSignature, claim.chain.erEndpoint)}
+                    >
+                      verify commit
                     </a>
                   </>
                 ) : null}
@@ -164,7 +228,7 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
                     Local handoff stands; ER milestone unavailable: {claim.chain.error}
                   </span>
                 ) : null}
-              </div>
+              </details>
             ) : null}
           </div>
         )}
@@ -273,8 +337,8 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
                 {optional.final.achievementBody}
               </p>
               <p className="mt-2 text-[11px] text-sage/40">
-                Earned {formatDateTime(optional.final.solvedAt)} · no extra Devnet reward, and nothing
-                here depends on being first.
+                Earned {formatDateTimeKst(optional.final.solvedAt)} KST · no extra Devnet reward, and
+                nothing here depends on being first.
               </p>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">

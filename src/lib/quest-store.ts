@@ -919,6 +919,10 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
       : null;
   const productClaim =
     completion && campaign.optionalMode === "product_clue" ? getClaimBySession(session.id) : null;
+  // The final clue, its question and the hidden ending are one unlock step: the
+  // product-clue handoff. Until it happens none of them is serialised, so a
+  // player cannot read the question out of the page payload or an API response.
+  const finalReleased = productClaim?.status === "handed_off";
 
   let stage: QuestStage;
   if (completion) stage = "complete";
@@ -1076,19 +1080,16 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
           }
         : null,
       // The final clue is only serialised once staff have released it.
-      clue:
-        productClaim?.status === "handed_off" && campaign.productClue.trim()
-          ? { text: campaign.productClue }
-          : null,
+      clue: finalReleased && campaign.productClue.trim() ? { text: campaign.productClue } : null,
       final: {
-        question: campaign.finalQuestion,
+        // Withheld until handoff, so the question is not in the player's data
+        // early. The companion reads this same field, so it only sees the
+        // question once it is unlocked too.
+        question: finalReleased ? campaign.finalQuestion : "",
         attempts: completion?.finalAnswerAttempts ?? 0,
         solved: Boolean(completion?.finalSolvedAt),
         solvedAt: completion?.finalSolvedAt ?? null,
-        hint:
-          productClaim?.status === "handed_off"
-            ? campaign.finalHint || null
-            : null,
+        hint: finalReleased ? campaign.finalHint || null : null,
         endingTitle: completion?.finalSolvedAt ? campaign.endingTitle : null,
         endingBody: completion?.finalSolvedAt ? campaign.endingBody : null,
         achievementTitle: completion?.finalSolvedAt ? campaign.achievementTitle : null,

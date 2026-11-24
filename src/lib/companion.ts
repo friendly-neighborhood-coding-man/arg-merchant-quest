@@ -145,7 +145,9 @@ function buildContext(view: QuestView, messages: CompanionMessage[]): CompanionC
     claimReference: view.optional.claim?.reference ?? null,
     clueReleased: Boolean(view.optional.clue),
     productClue: view.optional.clue?.text ?? null,
-    finalQuestion: view.optional.final.question,
+    // The final question is part of the released product moment. Do not send it
+    // to a provider before the clue is actually in the player's hands.
+    finalQuestion: view.optional.clue ? view.optional.final.question : "",
     finalSolved: view.optional.final.solved,
     hints,
     milestone: view.optional.claim?.chain
@@ -182,10 +184,13 @@ function systemPrompt(context: CompanionContext, view: QuestView): string {
     "Answer in 2-5 short sentences, under 120 words. Calm, specific, story-appropriate.",
     "RULES:",
     "- Use only the campaign facts and player-visible clues below. Never invent historical facts about the real world.",
-    "- Never state the basic answer, the pre-order deduction answer, the hidden-ending answer, or an unreleased product clue.",
+    "- Never state the basic answer, the optional deduction answer, the hidden-ending answer, or an unreleased product clue.",
     "- If asked directly for the answer or the ending, refuse briefly and offer a process hint instead.",
     "- Do not reveal anything the player has not unlocked. If the product clue is locked, say it is inside the designated product and that staff release it after a demo handoff.",
-    "- Challenge weak hypotheses with a question or a comparison; do not simply agree.",
+    "- Challenge weak hypotheses with a question or a comparison; do not simply agree. Name the weakest assumption and one clue that would falsify it.",
+    "- Separate what the player has observed from what they are guessing. Say which is which.",
+    "- Ask one useful follow-up question rather than giving a list of instructions.",
+    "- Do not repeat your previous reply. If the player circles the same point, name a concrete detail to test instead.",
     "- ER CLUE MILESTONE state 'committed' means this player's clue handoff was incremented on the MagicBlock Ephemeral Rollup and committed back to Solana. The committed value is the campaign-wide cumulative count of released clues, so any value of 1 or more is valid. Describe it as game state, not as proof of a real purchase.",
     "- State 'unconfirmed' or 'unavailable' means the clue was released locally but its on-chain record is not confirmed; say so plainly. Never treat the counter's value alone as proof of this player's handoff.",
     "- The free reward is fixed and unaffected by the product, hints or this conversation.",
@@ -196,7 +201,7 @@ function systemPrompt(context: CompanionContext, view: QuestView): string {
     `COUNTER QUESTION: ${context.answerQuestion} (solved: ${context.answerSolved}).`,
     `EVIDENCE: ${context.evidenceStatus ?? "not submitted"}; verified: ${context.verified}.`,
     `BASIC REWARD: ${context.rewardStatus ?? "not claimed"}; MagicBlock completion counter: ${context.chainCommittedValue ?? "not recorded"}.`,
-    `OPTIONAL MODE: ${context.optionalMode}. Product: ${context.productName || "none"}. Pre-order deduction solved: ${context.preOrderSolved}. Claim: ${context.claimStatus ?? "not requested"}${context.claimReference ? ` (reference ${context.claimReference})` : ""}.`,
+    `OPTIONAL MODE: ${context.optionalMode}. Product: ${context.productName || "none"}. Optional deduction solved: ${context.preOrderSolved}. Claim: ${context.claimStatus ?? "not requested"}${context.claimReference ? ` (reference ${context.claimReference})` : ""}.`,
     `PRODUCT CLUE RELEASED: ${context.clueReleased}${context.productClue ? `\nPRODUCT CLUE (released): ${context.productClue}` : ""}.`,
     `FINAL QUESTION: ${context.finalQuestion || "none"} (solved: ${context.finalSolved}).`,
     `ER CLUE MILESTONE: ${context.milestone ? `${context.milestone.state}${context.milestone.state === "committed" ? `, campaign-wide committed count ${context.milestone.committedValue}` : ""}` : "not recorded"}.`,
@@ -232,22 +237,46 @@ async function callProvider(
   const key = process.env.ARG_AI_API_KEY as string;
   const model = process.env.ARG_AI_MODEL as string;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25_000);
+  const timer = setTimeout(() => controller.abort(), 20_000);
+  const payload: Record<string, unknown> = {
+    model,
+    temperature: 0.6,
+    max_tokens: 240,
+    messages: buildProviderMessages(context, view, message),
+  };
+
+  async function request(body: Record<string, unknown>): Promise<Response> {
+    try {
+      return await fetch(providerUrl(), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error("AI provider timed out after 20 seconds.");
+      }
+      throw error;
+    }
+  }
+
   try {
-    const response = await fetch(providerUrl(), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.6,
-        max_tokens: 240,
-        messages: buildProviderMessages(context, view, message),
-      }),
-      signal: controller.signal,
-    });
+    let response = await request(payload);
+    // OpenAI's newer models renamed `max_tokens` to `max_completion_tokens`.
+    // Compatible servers vary, so retry once only when the error explicitly
+    // names the parameter; every other provider failure goes to the fallback.
+    if (response.status === 400) {
+      const detail = await response.text();
+      if (/max_tokens|max_completion_tokens/i.test(detail)) {
+        delete payload.max_tokens;
+        payload.max_completion_tokens = 240;
+        response = await request(payload);
+      }
+    }
     if (!response.ok) {
       throw new Error(`AI provider returned HTTP ${response.status}.`);
     }
@@ -300,8 +329,28 @@ export function milestoneSentence(view: QuestView): string {
   }
 }
 
+/** A concrete follow-up used when the player circles the same question. */
+function followUpFor(view: QuestView): string {
+  if (view.optional.clue && !view.optional.final.solved) {
+    return "Name one detail in the product clue and one earlier detail it changes. If you cannot pair them, the gap is where the answer lives.";
+  }
+  if (view.optional.claim?.status === "requested") {
+    return "The clue is still inside the product. What do you expect it to change about the earlier evidence once staff release it?";
+  }
+  if (view.extended.available && !view.extended.solved) {
+    return "Which two clues in the optional trail seem to disagree, and which one did the shop write later?";
+  }
+  if (!view.answer.solved) {
+    return "Say your current answer out loud, then point to the exact clue that produced it. If you cannot point to one, that is the gap.";
+  }
+  if (!view.completion) {
+    return "What will your photo actually show? Describe the object and the detail that ties it to the story.";
+  }
+  return "Pick the one detail you have not used yet and tell me what it would change.";
+}
+
 /** Deterministic, story-aware fallback. It never reveals answers or locked clues. */
-export function scriptedReply(
+function scriptedReplyOnce(
   view: QuestView,
   message: string,
 ): { reply: string; mode: "scripted" } {
@@ -333,13 +382,13 @@ export function scriptedReply(
 
   if (asked(["summary", "summar", "so far", "discovered", "what do we know"])) {
     const parts = [
-      `We are at ${view.campaign.shopName} in ${view.campaign.shopArea}, on the "${view.campaign.title}" trail.`,
+      `We are at ${view.campaign.shopName} in ${view.campaign.shopArea}, following "${view.campaign.title}".`,
       `Stage: ${view.stage}. We have read ${view.trail.onlineRead}/${view.trail.onlineTotal} online sources and ${view.trail.instoreRead}/${view.trail.instoreTotal} in-store clues.`,
     ];
     if (clues.length) parts.push(`The last thing we found: ${lastClue}`);
     if (view.answer.solved) parts.push("The counter's question is answered.");
     if (view.completion) parts.push(`The completion is verified; the fixed reward is ${view.completion.payoutStatus}.`);
-    if (view.extended.solved) parts.push("The pre-order deduction is solved.");
+    if (view.extended.solved) parts.push("The optional deduction is solved.");
     if (view.optional.claim) {
       parts.push(
         view.optional.claim.status === "handed_off"
@@ -399,10 +448,77 @@ export function scriptedReply(
     return { reply: next, mode: "scripted" };
   }
 
-  if (asked(["hypothesis", "wrong", "mistaken", "sure"])) {
+  if (asked(["hypothesis", "my theory", "could be", "i think"])) {
+    const clue = lastClue ? `“${lastClue.split(":")[0]}”` : "the last clue";
+    return {
+      reply: `Treat it as a hypothesis, not a fact. State it in one sentence, then test it against ${clue}: would that clue look different if you were wrong? If not, your theory is too vague to check. What is the weakest word in your sentence?`,
+      mode: "scripted",
+    };
+  }
+
+  if (asked(["does it fit", "does this fit"])) {
+    const clue = lastClue ? `“${lastClue.split(":")[0]}”` : "the last clue";
+    return {
+      reply: `Test it against ${clue}. Does that clue look different if your idea is wrong? If it fits every possible answer, it is not specific enough yet. Tell me the one detail that would make you abandon the idea.`,
+      mode: "scripted",
+    };
+  }
+
+  if (asked(["contradict", "disagree", "conflict", "doesn't fit", "does not fit"])) {
+    const first = clues[0] ?? null;
     return {
       reply:
-        "A good check: state your hypothesis in one sentence, then find one clue that would be false if you were right. If every clue still fits, you are probably reading a coincidence as a pattern. Tell me your sentence and I will point at the weakest word in it.",
+        first && lastClue && clues.length > 1
+          ? `Look for a real contradiction, not just two different facts. Earlier: “${first.split(":")[0]}”. Later: “${lastClue.split(":")[0]}”. Do they describe the same object at different times, or two different objects? Tell me which, and I will help you test it.`
+          : "A contradiction needs at least two observations on the table. Read one more source or look at the in-store detail, then bring me the two lines that seem incompatible.",
+      mode: "scripted",
+    };
+  }
+
+  if (asked(["missing evidence", "what evidence", "what am i missing", "haven't found", "not found", "what do i need"])) {
+    let missing = "Start with the next public record. We need one observation before we can test a theory.";
+    if (view.trail.onlineRead < view.trail.onlineTotal) {
+      missing = `We have read ${view.trail.onlineRead} of ${view.trail.onlineTotal} public sources. The missing evidence is the next record${view.trail.nextOnlineTitle ? `, “${view.trail.nextOnlineTitle}”` : ""}. Read it for a detail that can be counted or compared.`;
+    } else if (view.trail.instoreRead < view.trail.instoreTotal) {
+      missing = `The online trail is read, but we still need the in-store observation${view.trail.nextInstoreTitle ? `, “${view.trail.nextInstoreTitle}”` : ""}. Look at the public counter area without moving anything.`;
+    } else if (!view.answer.solved) {
+      missing = `We have the clues, but not your deduction. The question is “${view.answer.question}” Look for the one number the clues agree on, then answer it.`;
+    } else if (!view.completion) {
+      missing = "We have your deduction, but not reviewed evidence. A photo of the object — camera, upload or labelled simulation — is the next missing piece.";
+    } else if (view.optional.mode === "product_clue" && !view.extended.solved) {
+      missing = "The optional trail is still unopened. Read its three records and look for the one detail that disagrees with the free trail.";
+    } else if (view.optional.mode === "product_clue" && !view.optional.claim) {
+      missing = `The product handoff has not been requested. The clue is inside ${productLabel(view)}; request it, then show the reference to staff.`;
+    } else if (view.optional.claim?.status === "requested") {
+      missing = `The missing piece is the handoff itself. Show reference ${view.optional.claim.reference} to staff; they release the clue once.`;
+    } else if (view.optional.clue && !view.optional.final.solved) {
+      missing = `We have the product clue and the final question: “${view.optional.final.question}” What we are missing is the operation that connects them, not another object.`;
+    }
+    return { reply: missing, mode: "scripted" };
+  }
+
+  if (asked(["changed after", "after the handoff", "what changed", "since the handoff"])) {
+    if (view.optional.clue) {
+      return {
+        reply: `What changed is that the product clue is now in your hands: “${view.optional.clue.text}” It is an instruction that turns the earlier evidence into the final answer.${milestoneSentence(view) ? ` ${milestoneSentence(view)}` : ""}`,
+        mode: "scripted",
+      };
+    }
+    if (view.optional.claim) {
+      return {
+        reply: `The handoff has been requested under ${view.optional.claim.reference}, but the clue is still inside the product. Nothing in the evidence changes until staff release it.`,
+        mode: "scripted",
+      };
+    }
+    return {
+      reply: "No product handoff has happened yet, so nothing about the clue has changed. The free trail and its fixed reward are already settled.",
+      mode: "scripted",
+    };
+  }
+
+  if (asked(["wrong", "mistaken", "sure"])) {
+    return {
+      reply: `Certainty is not evidence. Pick the clue you are leaning on most and ask what else it could mean. ${followUpFor(view)}`,
       mode: "scripted",
     };
   }
@@ -469,7 +585,7 @@ export function scriptedReply(
       };
     }
     return {
-      reply: `${productLabel(view)} holds the last physical clue. Finish the pre-order deduction first, then request the product at the counter. The clue will not appear in the page before staff release it.`,
+      reply: `${productLabel(view)} holds the last physical clue. Finish the optional deduction first, then request the product at the counter. The clue will not appear in the page before staff release it.`,
       mode: "scripted",
     };
   }
@@ -517,13 +633,13 @@ export async function generateCompanionReply(
   const context = buildContext(view, history);
 
   if (!companionConfigured()) {
-    return { ...scriptedReply(view, clean), model: null, note: null };
+    return { ...scriptedReply(view, clean, history), model: null, note: null };
   }
 
   try {
     return await callProvider(context, view, clean);
   } catch (error) {
-    const fallback = scriptedReply(view, clean);
+    const fallback = scriptedReply(view, clean, history);
     return {
       ...fallback,
       mode: "scripted_fallback",
@@ -531,6 +647,27 @@ export async function generateCompanionReply(
       note: `Live AI was unavailable (${(error as Error).message}). The scripted guide answered instead.`,
     };
   }
+}
+
+/**
+ * Public scripted entry point. It avoids repeating the immediately previous
+ * assistant turn verbatim; when the player circles a point, Mara asks a
+ * concrete testing question instead of producing the same paragraph again.
+ */
+export function scriptedReply(
+  view: QuestView,
+  message: string,
+  history: CompanionMessage[] = [],
+): { reply: string; mode: "scripted" } {
+  const result = scriptedReplyOnce(view, message);
+  const previous = [...history].reverse().find((entry) => entry.role === "assistant");
+  if (previous && previous.content.trim() === result.reply.trim()) {
+    return {
+      reply: `We have circled that already. ${followUpFor(view)}`,
+      mode: "scripted",
+    };
+  }
+  return result;
 }
 
 /**

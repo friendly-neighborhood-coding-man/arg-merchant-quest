@@ -16,7 +16,10 @@
  * - unconfirmed  — an ER transaction was sent, but the commit was not
  *                  confirmed back on Solana (or the record is inconsistent).
  * - committed    — this claim's increment was committed and read back on the
- *                  base layer with a value of 1 or more.
+ *                  base layer with a value of 1 or more. Both the ER increment
+ *                  and the commit signature must be present; a commit
+ *                  signature without the increment it belongs to is not proof
+ *                  of this handoff.
  */
 export type MilestoneState = "not_recorded" | "unavailable" | "unconfirmed" | "committed";
 
@@ -31,7 +34,12 @@ export function milestoneState(chain: MilestoneEvidence | null | undefined): Mil
   if (!chain || !chain.status) return "not_recorded";
   const value = chain.committedValue;
   const hasValue = typeof value === "number" && Number.isInteger(value) && value >= 1;
-  if (chain.status === "committed" && hasValue && Boolean(chain.commitSignature)) {
+  if (
+    chain.status === "committed" &&
+    hasValue &&
+    Boolean(chain.incrementSignature) &&
+    Boolean(chain.commitSignature)
+  ) {
     return "committed";
   }
   if (chain.incrementSignature || chain.commitSignature || chain.status === "committed") {

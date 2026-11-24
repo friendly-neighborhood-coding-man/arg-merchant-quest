@@ -101,6 +101,99 @@ function StepRail({ stage }: { stage: QuestView["stage"] }) {
   );
 }
 
+/** A concise, campaign-aware story beat. It never reveals a locked answer. */
+function StoryTransition({ view }: { view: QuestView }) {
+  const optional = view.optional;
+  let beat: { label: string; title: string; body: string; anchor?: string; action?: string } | null = null;
+
+  if (optional.final.solved) {
+    beat = {
+      label: "Hidden ending · unlocked",
+      title: optional.final.endingTitle || "The hidden ending is yours",
+      body: `You followed ${view.campaign.title} past the free trail and found the ending. The achievement is saved on this browser.`,
+      anchor: "product-mystery",
+      action: "Read the ending",
+    };
+  } else if (optional.clue) {
+    beat = {
+      label: "The product clue · released",
+      title: `The last clue is out of ${optional.productName || "the product"}.`,
+      body: `${view.campaign.shopName} released it once. Read the prop, then answer the final question below.`,
+      anchor: "product-mystery",
+      action: "Read the clue",
+    };
+  } else if (view.completion && optional.available && !view.extended.solved) {
+    beat = {
+      label: "A second trail · optional",
+      title: `The basic trail is verified. ${view.campaign.title} has one more story.`,
+      body: `${optional.mode === "product_clue" ? `A deduction from the records opens the way to ${optional.productName || "a product"} and the clue hidden with it.` : "A deduction from the records unlocks a demo coupon and a second achievement."} The fixed reward is already settled and never depends on it.`,
+      anchor: "optional-mystery",
+      action: "Open the optional trail",
+    };
+  } else if (view.completion) {
+    beat = {
+      label: "Trail verified",
+      title: `${view.campaign.shopName} verified your evidence.`,
+      body: `Your fixed reward is ready. This is a personal completion, not a race and not a purchase.`,
+      anchor: "reward",
+      action: "Claim the fixed reward",
+    };
+  } else if (view.stage === "reviewing") {
+    beat = {
+      label: "Evidence · in review",
+      title: "A person is checking your photo.",
+      body: "Nothing is auto-approved. This page updates on its own while you wait.",
+    };
+  } else if (view.answer.solved) {
+    beat = {
+      label: "Deduction solved",
+      title: "The counter accepted your answer.",
+      body: "One step remains on the free trail: show what you found. Camera, upload and the labelled simulation are all accepted for review.",
+      anchor: "evidence",
+      action: "Show the counter",
+    };
+  } else if (view.trail.instoreRead >= view.trail.instoreTotal) {
+    beat = {
+      label: "The trail is read",
+      title: "You have what the counter needs.",
+      body: "Put the online record and the in-store observation together, then answer the counter's question.",
+      anchor: "counter-question",
+      action: "Answer the counter",
+    };
+  } else if (view.trail.onlineRead >= view.trail.onlineTotal) {
+    beat = {
+      label: "Online trail · read",
+      title: `The rest of this story is inside ${view.campaign.shopName}.`,
+      body: "Keep to the public counter area. The in-store clues unlock one at a time as you look.",
+      anchor: "instore-trail",
+      action: "Walk the shop",
+    };
+  }
+
+  if (!beat) return null;
+
+  return (
+    <section
+      role="status"
+      aria-live="polite"
+      className="rise overflow-hidden rounded-2xl border border-amber/30 bg-gradient-to-r from-amber/[0.08] to-ink-soft/70 px-4 py-3.5 sm:px-5"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="mono-label text-[9px] text-amber/80">{beat.label}</p>
+          <p className="mt-1 font-display text-xl leading-snug text-white/95">{beat.title}</p>
+          <p className="mt-1 text-[12.5px] leading-relaxed text-sage/70">{beat.body}</p>
+        </div>
+        {beat.anchor ? (
+          <a href={`#${beat.anchor}`} className="btn-ghost shrink-0 py-1.5 text-[11.5px]">
+            {beat.action} ↓
+          </a>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function ClueCard({ clue, index }: { clue: QuestClueView; index: number }) {
   return (
     <li className="panel-flat p-4">
@@ -373,12 +466,12 @@ function EvidencePanel({ slug, evidence }: { slug: string; evidence: QuestView["
   const retryable = evidence?.status === "rejected";
 
   return (
-    <section className="panel p-5">
+    <section id="evidence" className="scroll-mt-24 panel p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="mono-label">Act three · evidence</p>
         <span className="chip border-line text-sage/60">Operator-reviewed</span>
       </div>
-      <h2 className="mt-2 font-display text-2xl text-white/95">Show the counter the cup.</h2>
+      <h2 className="mt-2 font-display text-2xl text-white/95">Show the counter what you found.</h2>
       <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-sage/70">
         Take a photo in the app. Nothing here is auto-approved: a person on the operator side looks
         at your photo before the completion is verified. Camera and location are supporting evidence,
@@ -531,17 +624,17 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
   return (
     <section id="optional-mystery" className="scroll-mt-24 panel border-berry/30 p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="mono-label text-berry/80">Optional · the second question</p>
+        <p className="mono-label text-berry/80">Optional · the deeper trail</p>
         <span className="chip border-berry/40 bg-berry/10 text-berry">
           {view.extended.solved ? "Solved" : `${view.extended.step}/3 opened`}
         </span>
       </div>
-      <h2 className="mt-2 font-display text-2xl text-white/95">The letter was not the end of it.</h2>
+      <h2 className="mt-2 font-display text-2xl text-white/95">The trail is not the end of it.</h2>
       <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-sage/70">
-        The basic quest is finished. This trail is extra: a social record, a public page and one
-        thing you can only see in the shop. It never changes the fixed reward or requires a purchase.
+        The basic quest is finished. This trail is extra: the records you have already opened, read
+        against one observation from the shop. It never changes the fixed reward or requires a purchase.
         {view.optional.mode === "product_clue"
-          ? ` Solving it unlocks the optional product trail and a hidden ending: the last clue is printed inside the ${view.optional.productName}.`
+          ? ` Solving it unlocks the optional product trail and a hidden ending: the last clue is printed inside ${view.optional.productName || "the designated product"}.`
           : " It unlocks a second achievement and makes you eligible for a demo coupon."}
       </p>
 
@@ -600,7 +693,7 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
               disabled={busy || answer.trim().length === 0}
               className="btn-primary shrink-0 py-2.5"
             >
-              {busy ? "Checking…" : "Answer the letter"}
+              {busy ? "Checking…" : "Submit the deduction"}
             </button>
           </div>
         </div>
@@ -608,11 +701,11 @@ function ExtendedMystery({ slug, view }: { slug: string; view: QuestView }) {
 
       {view.extended.solved ? (
         <div className="mt-4 rounded-xl border border-mint/40 bg-mint/10 px-4 py-3">
-          <p className="text-[13px] font-semibold text-mint">The pre-order deduction is solved</p>
+          <p className="text-[13px] font-semibold text-mint">The optional deduction is solved</p>
           <p className="mt-1 text-[12px] leading-relaxed text-mint/85">
             {view.optional.mode === "product_clue"
-              ? `You worked out what the records were pointing at. The last clue is not online — it is inside the ${view.optional.productName}. Request it below and show the reference at ${view.campaign.shopName}.`
-              : `You solved ${view.campaign.title}'s extended mystery. Your demo coupon is issued below — show its code to staff at ${view.campaign.shopName}.`}
+              ? `You worked out what the records were pointing at. The last clue is not online — it is inside ${view.optional.productName || "the designated product"}. Request it below and show the reference at ${view.campaign.shopName}.`
+              : `You solved ${view.campaign.title}'s optional trail. Your demo coupon is issued below — show its code to staff at ${view.campaign.shopName}.`}
           </p>
         </div>
       ) : null}
@@ -654,6 +747,41 @@ export function QuestRun({
     return () => window.clearInterval(id);
   }, [view.stage, router]);
 
+  // Move the player to the story beat that just changed, but never on the
+  // first render (a reload should keep the reader where they were).
+  const transitionKey = [
+    view.stage,
+    view.answer.solved ? "answer" : "",
+    view.completion ? "verified" : "",
+    view.extended.solved ? "extended" : "",
+    view.optional.claim?.status ?? "",
+    view.optional.final.solved ? "ending" : "",
+  ].join("|");
+  const previousTransition = useRef(transitionKey);
+  useEffect(() => {
+    if (previousTransition.current === transitionKey) return;
+    previousTransition.current = transitionKey;
+    const target = view.optional.final.solved
+      ? "product-mystery"
+      : view.optional.clue
+        ? "product-mystery"
+        : view.extended.solved
+          ? "product-mystery"
+          : view.completion
+            ? "completion"
+            : view.stage === "reviewing"
+              ? "reviewing"
+              : view.answer.solved
+                ? "evidence"
+                : view.trail.onlineRead >= view.trail.onlineTotal
+                  ? "instore-trail"
+                  : "online-trail";
+    const timeout = window.setTimeout(() => {
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 180);
+    return () => window.clearTimeout(timeout);
+  }, [transitionKey, view]);
+
   async function act(action: "read-online" | "read-instore" | "hint-1" | "hint-2") {
     setBusy(action);
     setError(null);
@@ -681,31 +809,8 @@ export function QuestRun({
   const showEvidence = view.stage === "evidence" || view.stage === "reviewing" || view.stage === "complete";
 
   return (
-    <div className="space-y-6">
-      {view.completion ? (
-        <div className="rounded-2xl border border-mint/40 bg-mint/10 px-4 py-3">
-          <p className="text-[13px] font-semibold text-mint">
-            Quest verified — the counter approved your evidence.
-          </p>
-          <p className="mt-0.5 text-[12px] leading-relaxed text-mint/80">
-            {view.completion.payoutStatus === "paid"
-              ? `Your ${view.completion.rewardAmount}-credit reward was sent to ${view.completion.payout.wallet ?? "your Devnet wallet"}.`
-              : view.completion.payoutStatus === "failed"
-                ? `Your ${view.completion.rewardAmount}-credit reward is still unpaid — the last transfer failed. Retry it below.`
-                : `Your ${view.completion.rewardAmount}-credit reward is unclaimed until you send it to a Devnet wallet below.`}{" "}
-            {view.extended.solved ? "" : "The optional second question is still open."}
-          </p>
-        </div>
-      ) : view.stage === "reviewing" ? (
-        <div className="rounded-2xl border border-amber/40 bg-amber/10 px-4 py-3">
-          <p className="text-[13px] font-semibold text-amber-soft">
-            Evidence submitted — a person is checking it.
-          </p>
-          <p className="mt-0.5 text-[12px] leading-relaxed text-amber/80">
-            This page will update on its own. Nothing is approved automatically.
-          </p>
-        </div>
-      ) : null}
+    <div className="space-y-6 pb-24">
+      <StoryTransition view={view} />
 
       <section className="panel p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -713,7 +818,7 @@ export function QuestRun({
             <p className="mono-label text-[9px]">
               {view.campaign.shopName} · {view.campaign.shopArea}
             </p>
-            <h1 className="mt-1 font-display text-3xl leading-tight text-white sm:text-4xl">
+            <h1 className="mt-1 max-w-full font-display text-3xl leading-tight break-words text-white sm:text-4xl">
               {view.campaign.title}
             </h1>
           </div>
@@ -728,20 +833,23 @@ export function QuestRun({
         <div className="mt-4">
           <StepRail stage={view.stage} />
         </div>
-        <details className="mt-4 border-t border-line/60 pt-3">
-          <summary className="cursor-pointer text-[12px] text-sage/60 hover:text-sage/85">
-            The story so far
-          </summary>
-          <div className="mt-2 space-y-2 text-[13px] leading-relaxed whitespace-pre-line text-sage/75">
+        <div className="mt-4 border-t border-line/60 pt-4">
+          <p className="mono-label text-[9px] text-amber/75">Your objective</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-sage/80">
+            Read the public trail, find the in-store detail at {view.campaign.shopName}, answer the
+            counter, and show what you found. The optional story comes after the free reward is
+            settled.
+          </p>
+          <div className="mt-3 space-y-2 text-[13px] leading-relaxed whitespace-pre-line text-sage/70">
             {view.campaign.story}
           </div>
           <p className="mt-2 text-[11.5px] text-sage/45">
             Shop: {view.campaign.shopAddress}
           </p>
-        </details>
+        </div>
       </section>
 
-      <section className="panel p-5">
+      <section id="online-trail" className="scroll-mt-24 panel p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="mono-label">Act one · the online trail</p>
           <span className="chip border-line text-sage/60">
@@ -786,7 +894,7 @@ export function QuestRun({
       </section>
 
       {onlineComplete ? (
-        <section className="panel p-5">
+        <section id="instore-trail" className="scroll-mt-24 panel p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="mono-label">Act two · in the shop</p>
             <span className="chip border-line text-sage/60">
@@ -834,7 +942,7 @@ export function QuestRun({
       )}
 
       {onlineComplete && instoreComplete ? (
-        <section className="panel p-5">
+        <section id="counter-question" className="scroll-mt-24 panel p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="mono-label">The counter&apos;s question</p>
             {view.answer.solved ? (
@@ -888,7 +996,7 @@ export function QuestRun({
 
       <section className="panel-flat p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="mono-label">Ask the counter · optional hints</p>
+          <p className="mono-label">Ask the shop · optional hints</p>
           <span className="text-[11px] text-sage/45">The fixed reward never changes</span>
         </div>
         <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
@@ -921,7 +1029,7 @@ export function QuestRun({
       ) : null}
 
       {view.stage === "reviewing" && view.evidence ? (
-        <section className="panel border-amber/30 p-5">
+        <section id="reviewing" className="scroll-mt-24 panel border-amber/30 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="mono-label text-amber/80">Waiting for the operator</p>
             <span className="chip border-amber/40 bg-amber/10 text-amber-soft">In review</span>
@@ -949,12 +1057,12 @@ export function QuestRun({
       ) : null}
 
       {view.completion ? (
-        <section className="panel border-mint/40 p-5">
+        <section id="completion" className="scroll-mt-24 panel border-mint/40 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="mono-label text-mint/80">Completion recorded</p>
             <span className="chip border-mint/40 bg-mint/10 text-mint">Verified</span>
           </div>
-          <h2 className="mt-2 font-display text-2xl text-white/95">The counter believed you.</h2>
+          <h2 className="mt-2 font-display text-2xl text-white/95">The trail is verified.</h2>
           <p className="mt-2 text-[13px] leading-relaxed text-sage/75">
             {view.completion.simulated
               ? "An operator approved a labelled demo simulation for this prototype run. It is not proof that anyone was in the shop."
@@ -983,7 +1091,7 @@ export function QuestRun({
                       ? "Order reference issued"
                       : view.extended.solved
                         ? "Request the product below"
-                        : "Locked — solve the pre-order deduction"
+                        : "Locked — solve the optional deduction"
                   : view.coupon
                     ? view.coupon.displayStatus === "redeemed"
                       ? "Issued · redeemed"
@@ -1062,14 +1170,22 @@ export function QuestRun({
       ) : null}
 
       {view.completion && view.optional.available ? (
-        <div className="sticky top-2 z-20 flex items-center justify-between gap-3 rounded-xl border border-amber/35 bg-ink/95 px-3.5 py-2 shadow-lg backdrop-blur">
-          <p className="text-[11.5px] leading-snug text-sage/70">
-            Optional mystery · {view.optional.mode === "product_clue" ? "the clue inside the product" : "a demo coupon"}
+        <section className="panel border-berry/30 p-5">
+          <p className="mono-label text-berry/80">After the reward · optional</p>
+          <h2 className="mt-1 font-display text-2xl leading-snug text-white/95">
+            {view.optional.mode === "product_clue"
+              ? `${view.campaign.title} keeps one clue out of sight.`
+              : `${view.campaign.title} has a second story.`}
+          </h2>
+          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-sage/70">
+            {view.optional.mode === "product_clue"
+              ? `The optional trail ends with ${view.optional.productName || "a signature product"}, a simulated counter handoff, and the last clue hidden in the product. No payment is taken, and the fixed reward is already yours.`
+              : `The optional trail ends with a demo coupon and a second achievement. It never changes the fixed reward.`}
           </p>
-          <a href="#optional-mystery" className="btn-ghost shrink-0 py-1.5 text-[11.5px]">
-            Jump ↓
+          <a href="#optional-mystery" className="btn-primary mt-3 inline-block py-2.5">
+            {view.extended.solved ? "Continue the optional trail" : "Open the optional trail"}
           </a>
-        </div>
+        </section>
       ) : null}
 
       <ExtendedMystery slug={slug} view={view} />
@@ -1090,7 +1206,8 @@ export function QuestRun({
 
       <CompanionPanel slug={slug} title={view.campaign.title} />
 
-      <p className="pb-4 text-center text-[11px] leading-relaxed text-sage/40">
+
+      <p className="pb-2 text-center text-[11px] leading-relaxed text-sage/40">
         Fictional demo trail. Camera and location are supporting evidence reviewed by a person, never
         cryptographic proof of presence. Rewards are valueless Solana Devnet test tokens.
       </p>

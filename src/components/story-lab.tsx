@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { StoryLabResult } from "@/lib/story-lab";
+import type { StoryConcept, StoryLabResult } from "@/lib/story-lab";
+import { conceptToCampaignDraft } from "@/lib/story-draft";
+import { campaignFormHasUnsavedEdits } from "@/lib/form-dirty";
 
 /**
  * Merchant story lab. Generates draft concepts only — it never creates or
@@ -26,6 +28,23 @@ export function StoryLab({ merchantName }: { merchantName: string }) {
 
   function update(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function useConcept(concept: StoryConcept) {
+    // The concept replaces the whole form, so never discard text the merchant
+    // has typed but not saved without asking first. Cancelling keeps every
+    // current input exactly as it is.
+    if (campaignFormHasUnsavedEdits()) {
+      const replace = window.confirm(
+        "This page already has campaign text you have not saved. Loading this concept replaces the whole form.\n\nChoose Cancel to keep your current text, or OK to load the concept.",
+      );
+      if (!replace) return;
+    }
+    const draft = conceptToCampaignDraft(concept, form, merchantName);
+    sessionStorage.setItem("arg.storyDraft", JSON.stringify(draft));
+    // Reload the existing form page so it can merge the draft once. Nothing is
+    // saved or published until the merchant reviews and presses Save.
+    window.location.assign("/merchant/campaigns/new?lab=1#campaign-form");
   }
 
   async function generate() {
@@ -195,6 +214,17 @@ export function StoryLab({ merchantName }: { merchantName: string }) {
               <p className="mono-label text-[9px] text-amber/70">Draft concept {index + 1}</p>
               <h3 className="mt-1 font-display text-xl leading-snug text-white/95">{concept.title}</h3>
               <p className="mt-1.5 text-[12.5px] leading-relaxed text-sage/70">{concept.premise}</p>
+              <button
+                type="button"
+                onClick={() => useConcept(concept)}
+                className="btn-primary mt-3 w-full py-2 text-[12px] sm:w-auto"
+              >
+                Use this concept →
+              </button>
+              <p className="mt-1.5 text-[10.5px] leading-relaxed text-sage/45">
+                Opens the existing campaign form with an editable draft. Required fields the concept
+                cannot supply are marked INCOMPLETE; nothing is saved or published.
+              </p>
               <dl className="mt-3 space-y-2 text-[12px] leading-relaxed">
                 <div>
                   <dt className="mono-label text-[9px]">Online clues</dt>

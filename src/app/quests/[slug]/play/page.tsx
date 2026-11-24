@@ -49,7 +49,7 @@ export default async function QuestPlayPage({ params }: PageProps) {
         <Link href={`/quests/${slug}`} className="text-[12px] text-sage/60 hover:text-amber-soft">
           ← Quest briefing
         </Link>
-        <span className="font-mono text-[10px] tracking-wide text-sage/35">{campaign.slug}</span>
+        <span className="text-[11px] text-sage/35">{campaign.shopName}</span>
       </div>
       <QuestRun view={view} reward={reward} />
     </div>
