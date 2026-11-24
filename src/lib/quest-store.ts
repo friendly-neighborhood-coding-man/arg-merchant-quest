@@ -851,6 +851,13 @@ export interface QuestView {
   /** P0.4 demo coupon, issued only for legacy coupon campaigns. */
   coupon: CouponView | null;
   /**
+   * P2 shared investigation gate. `getQuestView` leaves it null because the
+   * milestone read is asynchronous; the play page and the API routes attach the
+   * result with `attachCollectiveInvestigation`. A null value means "not read",
+   * never "unlocked".
+   */
+  collective: import("./collective").CollectiveState | null;
+  /**
    * P1 optional mystery. For `product_clue` the final clue and ending are
    * stripped out until their real unlock conditions are met, so a player cannot
    * read them from the page payload early.
@@ -1051,6 +1058,7 @@ export function getQuestView(playerId: string, campaign: Campaign): QuestView | 
       hint: session.extendedSolvedAt || extStep >= 3 ? campaign.extHint || EXT_HINT_FALLBACK : null,
     },
     coupon: coupon ? couponView(coupon) : null,
+    collective: null,
     optional: {
       mode: campaign.optionalMode,
       available: Boolean(completion && campaign.extAnswer.trim()),

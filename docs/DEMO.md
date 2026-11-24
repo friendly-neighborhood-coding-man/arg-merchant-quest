@@ -1,6 +1,6 @@
 # Live demo runbook
 
-Status: P1 “Living ARG” plus P1 R2 “Playable Experience & Demo Polish”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. The live LLM path remains unverified because no provider key was available (see limitations).
+Status: P1 “Living ARG”, P1 R2 “Playable Experience & Demo Polish” and P2 “MagicBlock Adaptive Intelligence”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. P2 was proven with two live ER clue handoffs and a Chromium check of the locked and unlocked shared-investigation panel. The live LLM path remains unverified because no provider key was available (see limitations).
 
 ## Setup
 
@@ -187,7 +187,7 @@ Screenshots from this run: `artifacts/p04-coupon-desktop.png`, `artifacts/p04-co
 
 ### AI companion setup and context
 
-The companion is a server route (`/api/quests/[slug]/companion`) with GET history and POST message. With `ARG_AI_BASE_URL`, `ARG_AI_MODEL` and `ARG_AI_API_KEY` it calls an OpenAI-compatible chat endpoint; without them, or on any provider error, it answers with a deterministic scripted investigator and includes a note that live AI was unavailable. The prompt contains only the filtered quest view — revealed online/in-store clues, stage, verified state, extended solved state, claim status, released product clue and MagicBlock milestone state — plus prior conversation. It never receives the private counter answer, extended answer, final answer or the unreleased clue. Conversation rows are stored in SQLite and capped for loading; no browser message is trusted as chain state.
+The companion is a server route (`/api/quests/[slug]/companion`) with GET history and POST message. With `ARG_AI_BASE_URL`, `ARG_AI_MODEL` and `ARG_AI_API_KEY` it calls an OpenAI-compatible chat endpoint; without them, or on any provider error, it answers with a deterministic scripted investigator and includes a note that live AI was unavailable. The prompt contains only the filtered quest view — revealed online/in-store clues, stage, verified state, extended solved state, claim status, released product clue and MagicBlock milestone state — plus prior conversation. It never receives the private counter answer, extended answer, final answer or the unreleased clue. Conversation rows are stored in SQLite and capped for loading; no browser message is trusted as chain state. P2 adds the campaign-wide collective block: phase, eligible-handoff count, ER-live and Solana-committed values and staleness are always described, while the shared evidence text is present in the prompt only when the live ER gate is unlocked.
 
 ### What is real vs simulated
 
@@ -219,6 +219,38 @@ R2 used the Cloud Chromium browser against the dev server and a clean SQLite dat
 
 Screenshots from the run live in the gitignored `artifacts/r2/` directory.
 
+## P2 “Adaptive intelligence” run (2026-11-24)
+
+This run needed the deployed program, the demo treasury and a fresh database. The seeded campaign id is fixed, so its clue milestone already held 1 from the P1 handoff; the observed transition was 1 → 2 (unlock) → 3.
+
+1. Start the app with `ARG_COUNTER_PROGRAM_ID`, `ARG_TREASURY_KEYPAIR` and `ARG_REWARD_MINT` set, and a throwaway `ARG_DATA_DIR`.
+2. Run `node scripts/chain/p2-collective.mjs http://127.0.0.1:3000`. It drives two distinct players through start → clues → counter answer → evidence → operator approval → optional deduction → product request, then performs two staff handoffs.
+3. The script prints the ER state before, between and after, both handoff signatures, the base-layer committed value, the ER transaction lookup and Mara's reply at each stage. It exits non-zero if any check fails.
+
+### P2 evidence
+
+| Step | Value |
+| --- | --- |
+| Milestone PDA | `UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt` |
+| Before | phase `first`, ER live 1, committed 1, **locked**, no evidence |
+| First handoff increment | `3GJXHo7nT6WSqMdMctPngQkYWVfko5pChP7KD8FGT97SZrhJPhJg4VPTZpitV84LXAcF94pexZV5HfN7HimkcGEL` |
+| First handoff commit | `yaeFreKi9sgJBrvi8Fr1GtX8bjEAWGnYEDtTNY1FFLBuYPYKmBYLe5MVUbRQ8A8CUbRcKi42zLRkLe3vBQpmU9w` |
+| After first | phase `unlocked`, ER live 2, committed 2 |
+| Second handoff increment | `3NWPKNjemSomL4pYgaomg7a5Afe6MAr3Uh9tUUwACAztpMwSbbNF4NdLmZ5aYR3Jkzjqg2U6w6G3fhzA2bJbLSNF` |
+| Second handoff commit | `2UoBdbmrRfPEi7NQz94tzje8ieLjZLZ9CHDEwKacDoT9MDPSnkv3EWH3PZsF7EyfKxCtXqRsN18RfDSE39s1bjej` |
+| After second | phase `unlocked`, ER live 3, committed 3 |
+| Mara before | “1 eligible handoff … a second verified handoff is still needed” (no shared text) |
+| Mara after | quotes the shared record, compares it with “The April post”, asks which assumption to test |
+| ER transaction lookup | commit visible on `devnet-as.magicblock.app` (slot 1155272647) |
+
+A separate throwaway campaign (`cmp_p2_locked`) produced the 0 → 1 case on a new milestone account `A1MWoo2ksY6yK1UxKpZ1stqXUqHUijzKL5QF5PadY1Xs`: create `515nrHyDy6RhJTE9aLFV29puWUSiqe9q9kiDoKLExj5BJUBhGSYZC1n8ZBKNxom7fuacErzYHsUmuDtBNWD4CrXi`, delegate `38Hu6AAm9vgCaAWPfM7Km18Vmjw32W7V7kJ5JotiC3LqRjktuaaiSxwd6HY3CSePtY6QFwrGUu6wZCZ8pPhNwWvo`, ER increment `5PT8oQFVWT811pgx2iwZrWje4bzzCcT8ZbQnSnvB5wySfTkJ8ntoxKXsy3JJBLwhm4wNstBBan68Srb6ActkqUqE`, commit `66WxZ16asDkZgnXiq7AvvSA25cES1CKLjuoD2naDSdhKbUJjN7udBMkHbvH4jYYX2SvggYrDbD9JDzteGEWtpcS3`, committed value 1. The app reported phase `first`, count 1, **locked**, and Mara again asked for a second handoff.
+
+### Chromium check of both states
+
+- **Locked (count 1):** the play page panel read “1 handoff · still locked”, “1 eligible handoff · 1 more to unlock”, `ER live 1 · Solana committed 1`, and neither the DOM text nor the HTML contained any shared-evidence wording.
+- **Unlocked (count 3):** the panel read “Shared evidence unlocked”, `ER live 3 · Solana committed 3`, showed the story event and the shared record. Clicking **Ask Mara to revisit the earlier theories** opened the companion, which sent the question and replied with the shared record, a comparison point and a challenge to the player's assumption.
+- The companion was in **scripted guide** mode in both checks (no AI key configured), which is the intended fallback.
+
 ## Evidence to fill in
 
 - [x] Playable quest, staged clues, timed hints, camera/upload evidence, operator verification, extended mystery
@@ -228,5 +260,6 @@ Screenshots from the run live in the gitignored `artifacts/r2/` directory.
 - [ ] Deployed app URL
 - [ ] Screen recording
 - [x] Known limitations / demo-only steps
+- [x] P2: ER state changes the companion's permitted context (live two-handoff run above)
 
 **Do not mark done until genuinely observed.**

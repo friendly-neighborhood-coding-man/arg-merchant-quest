@@ -10,6 +10,7 @@ import { RewardClaim, type RewardPanelData } from "./reward-claim";
 import { CouponTicket } from "./coupon-ticket";
 import { ProductMystery } from "./product-mystery";
 import { CompanionPanel } from "./companion-panel";
+import { CollectiveInvestigation } from "./collective-investigation";
 
 const STEPS = ["Online trail", "In the shop", "The question", "Evidence", "Verified"];
 
@@ -848,6 +849,8 @@ export function QuestRun({
           </p>
         </div>
       </section>
+
+      <CollectiveInvestigation view={view} />
 
       <section id="online-trail" className="scroll-mt-24 panel p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">

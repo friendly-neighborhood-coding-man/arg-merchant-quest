@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { QuestRun } from "@/components/quest-run";
 import { rewardDisplay } from "@/lib/chain/reward";
+import { attachCollectiveInvestigation } from "@/lib/collective";
 import { getCampaignBySlug } from "@/lib/store";
 import { PLAYER_COOKIE, getQuestView } from "@/lib/quest-store";
 
@@ -26,8 +27,11 @@ export default async function QuestPlayPage({ params }: PageProps) {
   const playerId = cookieStore.get(PLAYER_COOKIE)?.value ?? null;
   if (!playerId) redirect(`/quests/${slug}`);
 
-  const view = getQuestView(playerId, campaign);
-  if (!view) redirect(`/quests/${slug}`);
+  const playerView = getQuestView(playerId, campaign);
+  if (!playerView) redirect(`/quests/${slug}`);
+  // P2: read the campaign's MagicBlock clue milestone on the server. A failed
+  // read degrades to "shared evidence locked", never to a fabricated count.
+  const view = await attachCollectiveInvestigation(playerView, campaign);
 
   const display = await rewardDisplay();
   const reward = display
