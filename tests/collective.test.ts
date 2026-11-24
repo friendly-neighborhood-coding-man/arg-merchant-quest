@@ -9,20 +9,29 @@ import {
 } from "./helpers";
 import {
   COLLECTIVE_EVIDENCE,
+  COLLECTIVE_SOURCE,
   COLLECTIVE_THRESHOLD,
   buildCollectiveState,
   collectivePhase,
   collectiveSummary,
+  containsRestrictedCollective,
+  getCollectiveAuthorization,
   readCollectiveState,
+  sessionMayReadCollective,
   withCollective,
+  type CollectiveState,
   type MilestoneRead,
+  type MilestoneReader,
 } from "../src/lib/collective";
 import {
   buildProviderMessages,
   collectiveSentence,
   companionContextSnapshot,
+  listCompanionMessages,
+  saveCompanionMessage,
   scriptedReply,
 } from "../src/lib/companion";
+import { getDb } from "../src/lib/db";
 import { getQuestView, type QuestView } from "../src/lib/quest-store";
 import type { Campaign } from "../src/lib/types";
 
@@ -301,3 +310,262 @@ function getFreshView(campaign: Campaign, playerId: string): QuestView {
   if (!view) throw new Error("no view for player");
   return view;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Session-scoped authorization (corrective pass R1)                          */
+/* ------------------------------------------------------------------------- */
+
+const liveAt = (erValue: number, baseValue = erValue): MilestoneReader => async () =>
+  read({ erValue, baseValue });
+const failingRead: MilestoneReader = async () => {
+  throw new Error("getAccountInfo failed: the ER endpoint did not answer");
+};
+const VERIFIED_AT = "2026-11-24T10:00:00.000Z";
+
+function startNinthCup() {
+  const campaign = campaignBySlug(NINTH_CUP.slug);
+  return { campaign, run: playTo(campaign, NINTH_CUP.answers, "started", nextPlayer()) };
+}
+
+/** History that a route or provider request would send for this view. */
+function historyFor(
+  view: QuestView,
+  messages = listCompanionMessages(view.sessionId, 40, { allowCollective: true }),
+) {
+  return messages.filter(
+    (message) => sessionMayReadCollective(view.collective) || !containsRestrictedCollective(message.content),
+  );
+}
+
+test("authorization: a new session with ER count 1 stays locked and records no grant", async () => {
+  const { campaign, run } = startNinthCup();
+  const state = await readCollectiveState(campaign, {
+    sessionId: run.sessionId,
+    reader: liveAt(1),
+  });
+  assert.equal(state.phase, "first");
+  assert.equal(state.count, 1);
+  assert.equal(state.evidence, null);
+  assert.equal(state.authority, "none");
+  assert.equal(sessionMayReadCollective(state), false);
+  assert.equal(collectiveSummary(state)?.locked, true);
+  assert.equal(getCollectiveAuthorization(run.sessionId, campaign.id), null);
+});
+
+test("authorization: a new session with ER count 2 unlocks and records its own grant", async () => {
+  const { campaign, run } = startNinthCup();
+  const state = await readCollectiveState(campaign, {
+    sessionId: run.sessionId,
+    reader: liveAt(2),
+    now: () => new Date(VERIFIED_AT),
+  });
+  assert.equal(state.phase, "unlocked");
+  assert.equal(state.authority, "live");
+  assert.equal(state.lastVerifiedAt, VERIFIED_AT);
+  assert.equal(state.evidence?.text, EVIDENCE.text);
+  assert.equal(sessionMayReadCollective(state), true);
+
+  const grant = getCollectiveAuthorization(run.sessionId, campaign.id);
+  assert.equal(grant?.campaignId, campaign.id);
+  assert.equal(grant?.sessionId, run.sessionId);
+  assert.equal(grant?.verifiedCount, 2);
+  assert.equal(grant?.verificationSource, "er-live");
+  assert.equal(grant?.unlockedAt, VERIFIED_AT);
+  assert.equal(grant?.lastVerifiedAt, VERIFIED_AT);
+});
+
+test("authorization: the grant survives a server restart", async () => {
+  const { campaign, run } = startNinthCup();
+  await readCollectiveState(campaign, { sessionId: run.sessionId, reader: liveAt(2) });
+
+  // Simulate a restart: close the SQLite handle and drop the process-wide cache
+  // so the next read opens the same file from scratch.
+  getDb().close();
+  delete (globalThis as { __argMerchantDb?: unknown }).__argMerchantDb;
+
+  const grant = getCollectiveAuthorization(run.sessionId, campaign.id);
+  assert.equal(grant?.verifiedCount, 2, "the grant must be on disk, not in memory");
+
+  const retained = await readCollectiveState(campaign, {
+    sessionId: run.sessionId,
+    reader: failingRead,
+  });
+  assert.equal(retained.phase, "unlocked");
+  assert.equal(retained.authority, "previously_verified");
+  assert.equal(retained.evidence?.text, EVIDENCE.text);
+});
+
+test("authorization: an authorized session keeps access through an ER outage, labelled previously verified", async () => {
+  const { campaign, run } = startNinthCup();
+  await readCollectiveState(campaign, {
+    sessionId: run.sessionId,
+    reader: liveAt(2),
+    now: () => new Date(VERIFIED_AT),
+  });
+
+  const retained = await readCollectiveState(campaign, {
+    sessionId: run.sessionId,
+    reader: failingRead,
+  });
+  assert.equal(retained.phase, "unlocked");
+  assert.equal(retained.authority, "previously_verified");
+  assert.equal(retained.count, 2);
+  assert.equal(retained.countSource, "stored");
+  assert.equal(retained.erLive, null);
+  assert.equal(retained.lastVerifiedAt, VERIFIED_AT);
+  assert.match(retained.error ?? "", /getAccountInfo failed/);
+  assert.equal(retained.evidence?.text, EVIDENCE.text);
+
+  const summary = collectiveSummary(retained);
+  assert.equal(summary?.locked, false);
+  assert.equal(summary?.authority, "previously_verified");
+  assert.equal(summary?.lastVerifiedAt, VERIFIED_AT);
+
+  const view = withCollective(run.view(), retained);
+  const sentence = collectiveSentence(view);
+  assert.match(sentence, /previously|earlier verification/);
+  assert.match(sentence, /current Ephemeral Rollup read is unavailable/);
+  const revisited = scriptedReply(view, "Revisit my earlier theories with the shared evidence").reply;
+  assert.ok(revisited.includes(EVIDENCE.text));
+});
+
+test("authorization: a different session stays locked during the same outage", async () => {
+  const { campaign, run } = startNinthCup();
+  await readCollectiveState(campaign, { sessionId: run.sessionId, reader: liveAt(2) });
+
+  const other = playTo(campaign, NINTH_CUP.answers, "started", nextPlayer());
+  const state = await readCollectiveState(campaign, {
+    sessionId: other.sessionId,
+    reader: failingRead,
+  });
+  assert.equal(state.phase, "unavailable");
+  assert.equal(state.evidence, null);
+  assert.equal(state.authority, "none");
+  assert.equal(sessionMayReadCollective(state), false);
+  assert.equal(collectiveSummary(state)?.locked, true);
+  assert.equal(getCollectiveAuthorization(other.sessionId, campaign.id), null);
+  assert.match(scriptedReply(withCollective(other.view(), state), "What can the other investigators add?").reply, /could not be read/i);
+});
+
+test("authorization: stored history cannot reintroduce the fragment without a grant", async () => {
+  const { campaign, run } = startNinthCup();
+  // A pre-patch transcript can contain the old or the current fragment text.
+  saveCompanionMessage(run.sessionId, "assistant", `The shop's record says: “${EVIDENCE.text}”`, "scripted");
+  saveCompanionMessage(
+    run.sessionId,
+    "assistant",
+    "Two verified handoffs came back to the counter with the same correction. Both readers wrote the same word.",
+    "scripted",
+  );
+  // A live model may quote one sentence instead of the whole fragment.
+  saveCompanionMessage(
+    run.sessionId,
+    "assistant",
+    "A page torn from the roastery's old order ledger, kept flat behind the register.",
+    "live",
+  );
+
+  const locked = await readCollectiveState(campaign, { sessionId: run.sessionId, reader: liveAt(1) });
+  const lockedView = withCollective(run.view(), locked);
+  assert.equal(sessionMayReadCollective(locked), false);
+
+  const visible = historyFor(lockedView);
+  assert.ok(!JSON.stringify(visible).includes(EVIDENCE.text));
+  assert.ok(!JSON.stringify(visible).includes("Two verified handoffs came back"));
+  assert.equal(visible.length, 0, "only restricted history existed, so nothing is sent");
+
+  const prompt = JSON.stringify(
+    buildProviderMessages(companionContextSnapshot(lockedView, visible), lockedView, "Revisit my earlier theories"),
+  );
+  assert.ok(!prompt.includes(EVIDENCE.text));
+  assert.ok(!prompt.includes("Two verified handoffs came back"));
+
+  // The same transcript is legitimate history for a session with its own grant.
+  const authorized = await readCollectiveState(campaign, { sessionId: run.sessionId, reader: liveAt(2) });
+  const authorizedView = withCollective(run.view(), authorized);
+  assert.equal(sessionMayReadCollective(authorized), true);
+  const kept = historyFor(authorizedView);
+  assert.equal(kept.length, 3);
+  assert.ok(JSON.stringify(kept).includes(EVIDENCE.text));
+});
+
+test("authorization: GET /companion and the outbound provider request agree with the current policy", async () => {
+  const { campaign, run } = startNinthCup();
+  saveCompanionMessage(run.sessionId, "assistant", `Story: ${EVIDENCE.text}`, "scripted");
+
+  const live = await readCollectiveState(campaign, { sessionId: run.sessionId, reader: liveAt(2) });
+  await readCollectiveState(campaign, { sessionId: run.sessionId, reader: failingRead }).then((retained) => {
+    assert.equal(retained.authority, "previously_verified");
+  });
+  const locked = await readCollectiveState(campaign, {
+    sessionId: playTo(campaign, NINTH_CUP.answers, "started", nextPlayer()).sessionId,
+    reader: failingRead,
+  });
+
+  for (const state of [live, locked] as CollectiveState[]) {
+    const allow = sessionMayReadCollective(state);
+    const summary = collectiveSummary(state);
+    assert.equal(summary?.locked, !allow);
+    assert.equal(summary?.evidence === null, !allow);
+    const messages = listCompanionMessages(run.sessionId, 40, { allowCollective: allow });
+    assert.equal(
+      messages.some((message) => containsRestrictedCollective(message.content)),
+      allow,
+      `history policy disagrees with the gate (${state.phase}/${state.authority})`,
+    );
+  }
+});
+
+test("authorization: a grant for one campaign never unlocks another", async () => {
+  const campaign = campaignBySlug(NINTH_CUP.slug);
+  const booth = createSecondBooth();
+  const run = playTo(campaign, NINTH_CUP.answers, "started", nextPlayer());
+  await readCollectiveState(campaign, { sessionId: run.sessionId, reader: liveAt(2) });
+  assert.equal(getCollectiveAuthorization(run.sessionId, campaign.id)?.verifiedCount, 2);
+
+  const other = await readCollectiveState(booth, {
+    sessionId: run.sessionId,
+    reader: failingRead,
+  });
+  assert.equal(other.phase, "unavailable");
+  assert.equal(other.evidence, null);
+  assert.equal(other.authority, "none");
+  assert.equal(getCollectiveAuthorization(run.sessionId, booth.id), null);
+});
+
+test("provenance: the fragment is attributed as prewritten fiction, not player observations", () => {
+  assert.equal(EVIDENCE.source, COLLECTIVE_SOURCE);
+  assert.equal(
+    EVIDENCE.source,
+    "Prewritten story fragment · unlocked when the campaign's MagicBlock milestone reaches 2.",
+  );
+  const text = `${EVIDENCE.title} ${EVIDENCE.text} ${EVIDENCE.source}`;
+  assert.match(text, /ledger/i);
+  assert.doesNotMatch(text, /two verified handoffs came back|both readers|compiled from/i);
+  assert.doesNotMatch(text, /players? (wrote|observed|reported|counted)/i);
+  assert.doesNotMatch(text, /\b(?:5|11|19)\b/);
+  assert.doesNotMatch(text, /not arithmetic|non-arithmetic|stops looking like arithmetic/i);
+  assert.equal(collectiveSummary(buildCollectiveState(campaignBySlug(NINTH_CUP.slug), read({ erValue: 2, baseValue: 2 })))?.evidence?.source, COLLECTIVE_SOURCE);
+});
+
+test("authorization: a collective grant never releases this player's own product clue", async () => {
+  const campaign = campaignBySlug(NINTH_CUP.slug);
+  const requested = playTo(campaign, NINTH_CUP.answers, "requested", nextPlayer());
+  const unlocked = withCollective(
+    requested.view(),
+    await readCollectiveState(campaign, { sessionId: requested.sessionId, reader: liveAt(2) }),
+  );
+  assert.equal(unlocked.collective?.phase, "unlocked");
+  assert.equal(unlocked.optional.claim?.status, "requested");
+  assert.equal(unlocked.optional.clue, null);
+  assert.equal(unlocked.optional.final.question, "");
+
+  const stranger = playTo(campaign, NINTH_CUP.answers, "started", nextPlayer());
+  const strangerView = withCollective(
+    stranger.view(),
+    await readCollectiveState(campaign, { sessionId: stranger.sessionId, reader: liveAt(2) }),
+  );
+  assert.equal(strangerView.collective?.phase, "unlocked");
+  assert.equal(strangerView.optional.claim, null, "another session's claim must not appear here");
+  assert.equal(strangerView.optional.clue, null);
+});

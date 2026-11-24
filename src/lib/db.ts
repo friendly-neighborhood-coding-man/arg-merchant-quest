@@ -237,6 +237,23 @@ CREATE TABLE IF NOT EXISTS companion_messages (
 );
 
 CREATE INDEX IF NOT EXISTS companion_messages_session_idx ON companion_messages (session_id, created_at);
+
+-- P2: session-scoped collective authorization. A row exists only after this
+-- campaign's own MagicBlock clue milestone was read at 2 or more eligible
+-- handoffs for this session. It lets the session keep reading the prewritten
+-- fragment through a temporary ER outage; it is never derived from a client
+-- value, a local product claim or another session's grant.
+CREATE TABLE IF NOT EXISTS collective_authorizations (
+  campaign_id TEXT NOT NULL,
+  session_id TEXT NOT NULL REFERENCES quest_sessions(id) ON DELETE CASCADE,
+  collective_unlocked_at TEXT NOT NULL,
+  verified_count INTEGER NOT NULL,
+  verification_source TEXT NOT NULL,
+  last_verified_at TEXT NOT NULL,
+  PRIMARY KEY (session_id, campaign_id)
+);
+
+CREATE INDEX IF NOT EXISTS collective_authorizations_campaign_idx ON collective_authorizations (campaign_id);
 `;
 
 type GlobalWithDb = typeof globalThis & { __argMerchantDb?: DatabaseSync };

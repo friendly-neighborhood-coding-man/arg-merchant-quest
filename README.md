@@ -160,13 +160,28 @@ The milestone is read **on the server** for every play, companion and investigat
 
 ### A deterministic context gate for Mara
 
-`src/lib/collective.ts` produces one state object (phase, count, ER-live value, committed value, endpoint, staleness, error). The prewritten Ninth Cup fragment is copied into the player view, provider messages, JSON APIs and rendered HTML **only** when the gate is unlocked; locked states carry status but no fragment. `companionContextSnapshot` and `buildProviderMessages` make the difference testable without a live model.
+`src/lib/collective.ts` produces one state object (phase, count, ER-live value, committed value, endpoint, staleness, error). The prewritten Ninth Cup fragment is copied into the player view, provider messages, JSON APIs and rendered HTML **only** when this session's gate is unlocked; locked states carry status but no fragment. `companionContextSnapshot` and `buildProviderMessages` make the difference testable without a live model.
 
 After unlock Mara compares the shared record with the player's observations, challenges the assumption behind their theory and asks a specific next question. The scripted guide does the same without a key, and **Ask Mara to revisit the earlier theories** opens the companion with that question. Before unlock she says a second handoff is needed and never guesses at the content.
 
 ### Player-facing shared investigation
 
-A compact panel under the quest header separates personal progress from the campaign-wide milestone, shows `ER live` and `Solana committed` values with the endpoint, labels the count as handoffs (not people), and explains why the evidence is locked. On unlock it shows a small story event with the shared record and the revisit button. When the chain is unavailable the panel says so and normal play plus scripted guidance keep working. `GET /api/quests/[slug]/investigation` exposes the same read-only state, and the companion responses include it.
+A compact panel under the quest header separates personal progress from the campaign-wide milestone, shows `ER live` and `Solana committed` values with the endpoint, labels the count as handoffs (not people), and explains why the evidence is locked. On unlock it shows a small story event with the shared record and the revisit button. When the chain is unavailable the panel says so and normal play plus scripted guidance keep working. `GET /api/quests/[slug]/investigation` exposes the same read-only state, and the companion responses include it. Campaigns without a configured fragment (everything except The Ninth Cup) render no panel at all, rather than a “2 handoffs unlock” teaser for a record that does not exist.
+
+### Accurate provenance and session-scoped unlocks
+
+The fragment is **prewritten story material**, labelled everywhere as “Prewritten story fragment · unlocked when the campaign's MagicBlock milestone reaches 2.” It is an in-world ledger page written by the shop: it never claims observations from real players, names no answer, and does not describe the product clue as non-arithmetic.
+
+A verified unlock is remembered per `(session, campaign)` in `collective_authorizations` (`collective_unlocked_at`, `verified_count`, `verification_source`, `last_verified_at`). The row is written only after a trustworthy read of that campaign's own milestone, so a new session at count 1, a client-supplied count, another session's row or a local product claim cannot unlock anything.
+
+| Situation | Result |
+| --- | --- |
+| New session, live ER count 2+ | unlocked `live`; grant recorded |
+| Session with a grant, ER unreachable | unlocked `previously_verified`; earlier count and timestamp shown, current ER read labelled unavailable |
+| Session without a grant, ER unreachable | `unavailable`, evidence locked |
+| Grant for campaign A, request for campaign B | campaign B stays locked |
+
+The same policy governs the companion transcript. Stored messages containing a fragment (including the pre-patch wording) stay in SQLite but are excluded from `GET /companion` and from the outbound provider request unless this session is currently authorized. An old assistant message is never treated as authorization.
 
 ### P2 live evidence (2026-11-24, Devnet)
 

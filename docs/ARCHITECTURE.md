@@ -177,8 +177,11 @@ phase: none (0) | first (1) | unlocked (>=2)
 - The gate is the **live ER value**, not a local row or a client value. A handoff still needs the staff confirmation route, which is the only writer of the milestone.
 - `readCollectiveState` never throws; a failure becomes an `unavailable` state with an error string and no fragment. The play page and companion route await it with a 2.5 s timeout, so a slow RPC degrades to "locked", never to an error page.
 - `buildCollectiveState` is pure, so the 0/1/2+ thresholds, stale-read rule, malformed values and campaign isolation are unit-tested without a network.
-- The companion's context is reduced again in `companion.ts`: even a wrongly attached state can only expose the fragment when `phase === "unlocked"`.
-- "ER live" and "Solana committed" are displayed separately, and the UI says the count is handoffs, not people. The app never claims that an ER increment is settled on Solana until the committed value is read back.
+- `collective_authorizations` remembers a verified unlock per `(session_id, campaign_id)`. A row is written only from a trustworthy milestone read for that campaign; never from a browser value, a product claim or another session's row. On a later failed ER read a granted session keeps the fragment as `authority: "previously_verified"` with the stored count, source and timestamp, while a session without a grant stays `unavailable`.
+- Stored companion history is filtered by the same predicate (`sessionMayReadCollective`) before `GET /companion` and before the outbound provider request, matching the current fragment text and the pre-patch wording. Rows are retained in SQLite; nothing is deleted, and an old assistant message is never treated as authorization.
+- The fragment's `source` states it is a prewritten story fragment unlocked by the milestone. It is in-world fiction, not a compilation of real player observations; only The Ninth Cup has one, so other campaigns omit the panel.
+- The companion's context is reduced again in `companion.ts`: even a wrongly attached state can only expose the fragment when `sessionMayReadCollective` is true.
+- "ER live" and "Solana committed" are displayed separately, and the UI says the count is handoffs, not people. The app never claims that an ER increment is settled on Solana until the committed value is read back. A retained unlock is labelled as previously verified and never described as a fresh read.
 - `scripts/chain/p2-collective.mjs` repeats the evidence run (two handoffs, state before/between/after, Mara's permitted context, base-layer read, ER transaction lookup).
 
 Scope held: no VRF, no Private ER, no new on-chain program, no payment change, no general multiplayer infrastructure, and no additional token reward.

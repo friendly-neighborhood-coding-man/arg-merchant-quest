@@ -10,6 +10,7 @@ import {
   attachCollectiveInvestigation,
   collectiveSummary,
   personalInvestigation,
+  sessionMayReadCollective,
 } from "@/lib/collective";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
 import { getQuestView, getSession } from "@/lib/quest-store";
@@ -37,9 +38,12 @@ export async function GET(
 
   const playerView = getQuestView(playerId, campaign);
   const view = playerView ? await attachCollectiveInvestigation(playerView, campaign) : null;
+  // The same policy as the outbound provider request: restricted collective
+  // material is in this transcript only when this session may read it now.
+  const allowCollective = sessionMayReadCollective(view?.collective ?? null);
 
   return NextResponse.json({
-    messages: listCompanionMessages(session.id),
+    messages: listCompanionMessages(session.id, 40, { allowCollective }),
     mode: companionConfigured() ? "live" : "scripted",
     model: companionModelName(),
     collective: collectiveSummary(view?.collective ?? null),

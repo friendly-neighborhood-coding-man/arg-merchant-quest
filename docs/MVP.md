@@ -37,7 +37,10 @@
 - [x] Collective evidence cannot leak before the gate. *(P2 — the Ninth Cup fragment is attached to the view/provider prompt/API/HTML only when the live ER value reaches 2; locked states carry status but no text, and `companionContextSnapshot` proves the difference deterministically.)*
 - [x] Unavailable, stale or malformed ER reads do not unlock or fabricate progress. *(P2 — a missing/erroring/timed-out read is `unavailable`; an ER value behind the committed base value is marked stale and the committed value wins; both values are shown.)*
 - [x] Player-facing shared investigation. *(P2 — compact panel with personal progress, the collective milestone, locked/unlocked state, ER-live versus Solana-committed values, a story event on unlock, and an **Ask Mara to revisit the earlier theories** action.)*
-- [x] Preserved behaviour and separate identities. *(P2 — a player's own product clue still depends only on their claim; product-clue mode still never issues a coupon; the fixed reward, hidden ending and scripted guidance are unchanged. 42 tests.)*
+- [x] Accurate collective provenance. *(P2 R1 — the fragment is labelled “Prewritten story fragment · unlocked when the campaign's MagicBlock milestone reaches 2.” It is an in-world shop ledger page, never presented as compiled player observations, and names no answer.)*
+- [x] Verified unlocks are remembered per session. *(P2 R1 — `collective_authorizations` stores `(campaign, session, unlocked_at, verified_count, source, last_verified_at)`. A granted session keeps the fragment through an ER outage labelled “previously verified” with its count and timestamp; a session without a grant stays locked, including during the same outage. Stored history is filtered by the same policy for `GET /companion` and the provider request.)*
+- [x] No panel without a fragment. *(P2 R1 — only The Ninth Cup has collective content; other campaigns render no shared-investigation panel instead of a generic unlock teaser.)*
+- [x] Preserved behaviour and separate identities. *(P2 — a player's own product clue still depends only on their claim; product-clue mode still never issues a coupon; the fixed reward, hidden ending and scripted guidance are unchanged. 52 tests.)*
 
 ## P2 — demo proof
 
