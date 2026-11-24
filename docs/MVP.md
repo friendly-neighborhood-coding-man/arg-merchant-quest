@@ -29,7 +29,7 @@
 - [x] Real MagicBlock gameplay state that changes companion guidance. *(P1 — an isolated clue milestone PDA is created/delegated/incremented/committed on the ER at handoff; the companion reads it and changes its next-step guidance. ER failure is recorded, never faked.)*
 - [x] Merchant story-drafting aid that separates facts, merchant input and fiction. *(P1 — `/merchant` story lab, draft only, three concepts, local fallback without a key. R2 adds **Use this concept**, which merges one draft into the existing form once and marks unsupplied required fields `INCOMPLETE —`.)*
 - [x] Playable-experience pass. *(R2 — objective-first player flow, campaign-aware transitions, generic headings, inline optional invitation, collapsed technical evidence, separated staff coupon/product workflows, mobile safeguards and overflow checks at 390/768/1280 px.)*
-- [x] Portable regression suite. *(R2 — `npm test` runs `node scripts/run-tests.mjs`: `tsc -p tsconfig.test.json`, then Node's built-in test runner. 25 tests.)*
+- [x] Portable regression suite. *(R2 — `npm test` runs `node scripts/run-tests.mjs`: `tsc -p tsconfig.test.json`, then Node's built-in test runner over the enumerated `*.test.js` files, which Node 22 accepts where a bare directory does not. 30 tests.)*
 
 ## P2 — demo proof
 

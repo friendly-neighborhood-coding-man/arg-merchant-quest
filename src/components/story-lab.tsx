@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { StoryConcept, StoryLabResult } from "@/lib/story-lab";
 import { conceptToCampaignDraft } from "@/lib/story-draft";
+import { campaignFormHasUnsavedEdits } from "@/lib/form-dirty";
 
 /**
  * Merchant story lab. Generates draft concepts only — it never creates or
@@ -30,6 +31,15 @@ export function StoryLab({ merchantName }: { merchantName: string }) {
   }
 
   function useConcept(concept: StoryConcept) {
+    // The concept replaces the whole form, so never discard text the merchant
+    // has typed but not saved without asking first. Cancelling keeps every
+    // current input exactly as it is.
+    if (campaignFormHasUnsavedEdits()) {
+      const replace = window.confirm(
+        "This page already has campaign text you have not saved. Loading this concept replaces the whole form.\n\nChoose Cancel to keep your current text, or OK to load the concept.",
+      );
+      if (!replace) return;
+    }
     const draft = conceptToCampaignDraft(concept, form, merchantName);
     sessionStorage.setItem("arg.storyDraft", JSON.stringify(draft));
     // Reload the existing form page so it can merge the draft once. Nothing is

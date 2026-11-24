@@ -53,6 +53,29 @@ test("unreleased clue never reaches the player view; one handoff only; final ans
   assert.ok(codes.includes("hidden_ending"), `achievements: ${codes.join(",")}`);
 });
 
+test("the final question is absent from the player payload until the clue is released", () => {
+  const campaign = campaignBySlug(NINTH_CUP.slug);
+  assert.ok(campaign.finalQuestion.trim().length > 0);
+  const run = playTo(campaign, NINTH_CUP.answers, "requested", nextPlayer());
+
+  const before = JSON.stringify(run.view());
+  assert.ok(
+    !before.includes(campaign.finalQuestion),
+    "the unreleased final question leaked into the player view",
+  );
+  assert.equal(run.view().optional.final.question, "");
+  assert.equal(run.view().optional.clue, null);
+
+  const released = handoffProductClaim({
+    reference: run.reference as string,
+    staffName: "Staff A",
+    handoffConfirmed: true,
+  });
+  assert.ok(released.ok);
+  assert.equal(run.view().optional.final.question, campaign.finalQuestion);
+  assert.ok(JSON.stringify(run.view()).includes(campaign.finalQuestion));
+});
+
 test("legacy coupon mode: one coupon after the extended solve, redeemed once", () => {
   const parsed = validateCampaignInput({
     title: "The Brass Key",

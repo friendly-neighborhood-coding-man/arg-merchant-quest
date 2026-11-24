@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Campaign } from "@/lib/types";
 import type { FieldErrors } from "@/lib/validation";
 import type { StoryCampaignDraft } from "@/lib/story-draft";
+import { registerCampaignFormDirtyCheck } from "@/lib/form-dirty";
 
 type ClueKind = "onlineClues" | "instoreClues";
 
@@ -246,6 +247,20 @@ export function CampaignForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [labNotice, setLabNotice] = useState<string | null>(null);
+
+  // The Story Lab sits above this form and can replace all of it. Compare the
+  // live draft with what this page started from so the lab can ask before
+  // discarding unsaved merchant text.
+  const baseline = useMemo(() => (campaign ? draftFromCampaign(campaign) : INITIAL), [campaign]);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  useEffect(() => {
+    registerCampaignFormDirtyCheck(
+      () => JSON.stringify(draftRef.current) !== JSON.stringify(baseline),
+    );
+    return () => registerCampaignFormDirtyCheck(null);
+  }, [baseline]);
 
   // A Story Lab concept is handed over through sessionStorage and merged once
   // into the existing editable form. Removing the query and storage entry means

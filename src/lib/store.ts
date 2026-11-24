@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { getDb, transaction } from "./db";
 import type { Campaign, CampaignStatus, Clue, ClueKind, Merchant, OptionalMode } from "./types";
-import type { CampaignInput } from "./validation";
+import {
+  placeholderError,
+  placeholderFieldLabel,
+  placeholderPaths,
+  type CampaignInput,
+} from "./validation";
 
 interface CampaignRow {
   id: string;
@@ -530,6 +535,20 @@ export function submitCampaignForReview(id: string, merchantId: string): Mutatio
         campaign.status === "pending"
           ? "This campaign is already waiting for operator review."
           : "This campaign is already live.",
+    };
+  }
+  // A stored draft must not reach the operator queue while any Story Lab
+  // placeholder is still in place; the operator reviews merchant copy, not the
+  // drafter's notes. This also covers drafts saved before validation rejected
+  // placeholders.
+  const placeholders = placeholderPaths(campaign);
+  if (placeholders.length > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: `Replace the unfinished Story Lab placeholder text in ${placeholders
+        .map(placeholderFieldLabel)
+        .join(", ")} before sending this campaign for review. ${placeholderError(placeholders[0])}`,
     };
   }
   if (!campaign.answer.trim() || !campaign.answerQuestion.trim()) {

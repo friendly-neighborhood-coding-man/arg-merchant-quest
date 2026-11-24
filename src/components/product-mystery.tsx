@@ -11,6 +11,44 @@ function erLink(signature: string, endpoint: string | null): string {
   return `/chain/er/${signature}${endpoint ? `?endpoint=${encodeURIComponent(endpoint)}` : ""}`;
 }
 
+type ClaimChain = NonNullable<NonNullable<QuestView["optional"]["claim"]>["chain"]>;
+type MilestoneTone = "mint" | "amber" | "sage";
+
+const MILESTONE_TONE: Record<MilestoneTone, string> = {
+  mint: "border-mint/35 bg-mint/[0.08] text-mint/90",
+  amber: "border-amber/35 bg-amber/[0.07] text-amber/85",
+  sage: "border-line/80 bg-ink/60 text-sage/60",
+};
+
+/**
+ * One short, always-visible line naming this handoff's real MagicBlock state.
+ * Only a milestone that was committed and read back on the base layer, with the
+ * increment and commit it belongs to, says "Committed"; every other state is
+ * labelled with what actually happened. Signatures stay in the record below.
+ */
+function milestoneSummary(chain: ClaimChain | null): { text: string; tone: MilestoneTone } {
+  const state = milestoneState(chain);
+  if (state === "committed") {
+    return {
+      text: `MagicBlock ER · Committed · Campaign count ${chain?.committedValue}`,
+      tone: "mint",
+    };
+  }
+  if (state === "unconfirmed") {
+    return { text: "MagicBlock ER · Unconfirmed · commit not read back on Solana", tone: "amber" };
+  }
+  if (state === "unavailable") {
+    return {
+      text: "MagicBlock ER · Unavailable · clue release is local only",
+      tone: "sage",
+    };
+  }
+  return {
+    text: "MagicBlock ER · Not recorded · no milestone transaction for this handoff",
+    tone: "sage",
+  };
+}
+
 /**
  * P1 product-clue mystery. The final clue is not in this component's data until
  * the server view says staff released it; the order reference is the only thing
@@ -28,6 +66,7 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
 
   const claim = optional.claim;
   const released = claim?.status === "handed_off";
+  const milestone = released ? milestoneSummary(claim.chain) : null;
 
   async function requestProduct() {
     setBusy(true);
@@ -139,6 +178,13 @@ export function ProductMystery({ slug, view }: { slug: string; view: QuestView }
               <Link href="/staff" className="btn-ghost mt-3 inline-block py-2 text-[12.5px]">
                 Open the staff counter →
               </Link>
+            ) : null}
+            {milestone ? (
+              <p
+                className={`mt-3 block w-fit max-w-full rounded-lg border px-2.5 py-1.5 font-mono text-[10.5px] leading-snug ${MILESTONE_TONE[milestone.tone]}`}
+              >
+                {milestone.text}
+              </p>
             ) : null}
             {claim.chain?.counterAccount ? (
               <details className="mt-3 border-t border-line/60 pt-2.5 text-[11px] leading-relaxed text-sage/50">

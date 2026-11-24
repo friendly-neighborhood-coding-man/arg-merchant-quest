@@ -213,6 +213,7 @@ R2 used the Cloud Chromium browser against the dev server and a clean SQLite dat
 
 - **The Ninth Cup, 375 px:** start → read 3 sources → 2 in-store clues → answer `5` → labelled simulation → operator approval → verified transition → optional deduction `11` → product reference → staff release → hidden ending `19`.
 - **The Midnight Jar, 390 px:** Story Lab concept → one-time form prefill → complete the merchant campaign → operator approval → read 3 sources → 2 in-store clues → answer `6` → operator approval → optional deduction `5` → reference `MIDNIG-CLUE-5P9P` → staff release → hidden ending `5`.
+- **R2 final corrections, 375/390 px:** a Story Lab concept with placeholders cannot be saved (ten field-specific errors, nested clue text included); completing the same draft saves and enters operator review; **Use this concept** asks before replacing unsaved form text, and Cancel keeps every field; the final question is absent from the player payload until staff release the product clue, then appears; the visible milestone line reads `MagicBlock ER · Unavailable · clue release is local only` on a deployment without ER configuration and never claims a commit.
 - **Layout:** no horizontal overflow on `/`, `/quests`, quest detail, play, `/merchant` or `/staff` at 390/768/1280 px. Companion drawer and long references wrap; technical evidence starts collapsed.
 - **Not covered:** physical iOS/Android devices, real camera hardware, native browser chrome, screen readers. The coupon-mode browser path was not replayed in R2; it is covered by `tests/flow.test.ts`.
 

@@ -90,6 +90,95 @@ function text(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Story Lab marks every field it cannot honestly fill with `INCOMPLETE — …`.
+ * That marker is a drafting aid for the merchant, never copy for players or for
+ * the operator, so server-side validation rejects it before a draft can be
+ * saved or sent to review. Matching is done on the trimmed value and requires
+ * the marker itself (optionally with its separator), so ordinary prose that
+ * happens to start with the word "incomplete" is left alone.
+ */
+export const PLACEHOLDER_MARKER = "INCOMPLETE";
+const PLACEHOLDER_PATTERN = /^INCOMPLETE\s*(?:[—–:-].*)?$/i;
+
+export function isPlaceholderText(value: unknown): boolean {
+  return typeof value === "string" && PLACEHOLDER_PATTERN.test(value.trim());
+}
+
+const PLACEHOLDER_LABELS: Record<string, string> = {
+  title: "Campaign title",
+  shopName: "Shop name",
+  shopArea: "Neighbourhood",
+  shopAddress: "Address",
+  teaser: "One-line hook",
+  story: "Story briefing",
+  targetObject: "Target object",
+  targetObjectHint: "Where to look hint",
+  couponItem: "Coupon item",
+  couponNotes: "Coupon conditions",
+  answerQuestion: "Counter question",
+  answer: "Answer",
+  hint1: "Hint at 3 minutes",
+  hint2: "Hint at 5 minutes",
+  extSocialClue: "Extended social clue",
+  extWebClue: "Extended website clue",
+  extInstoreClue: "Extended in-store clue",
+  extAnswer: "Extended answer",
+  extHint: "Extended hint",
+  extQuestion: "Extended question",
+  productName: "Signature product",
+  productPriceLabel: "Demo price label",
+  productProp: "Physical prop",
+  productClue: "Product clue",
+  finalQuestion: "Final question",
+  finalAnswer: "Final answer",
+  finalHint: "Final hint",
+  endingTitle: "Ending title",
+  endingBody: "Ending narrative",
+  achievementTitle: "Achievement title",
+  achievementBody: "Achievement detail",
+};
+
+/** A readable name for a placeholder field path such as `onlineClues.0.body`. */
+export function placeholderFieldLabel(path: string): string {
+  const known = PLACEHOLDER_LABELS[path];
+  if (known) return known;
+  const clue = /^(onlineClues|instoreClues|clues)\.(\d+)\.(title|body|url)$/.exec(path);
+  if (clue) {
+    const kind = clue[1] === "instoreClues" ? "In-store" : "Online";
+    const part = clue[3] === "title" ? "title" : clue[3] === "body" ? "text" : "link";
+    return `${kind} clue ${Number(clue[2]) + 1} ${part}`;
+  }
+  return path;
+}
+
+export function placeholderError(path: string): string {
+  return `${placeholderFieldLabel(path)} still contains the Story Lab placeholder. Replace the INCOMPLETE text with your own wording.`;
+}
+
+/** Field paths, nested clue content included, that still hold a placeholder. */
+export function placeholderPaths(value: unknown, prefix = ""): string[] {
+  if (!value || typeof value !== "object") return [];
+  const found: string[] = [];
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (Array.isArray(raw)) {
+      raw.forEach((entry, index) => {
+        if (entry && typeof entry === "object") {
+          found.push(...placeholderPaths(entry, `${path}.${index}`));
+        } else if (isPlaceholderText(entry)) {
+          found.push(`${path}.${index}`);
+        }
+      });
+    } else if (raw && typeof raw === "object") {
+      found.push(...placeholderPaths(raw, path));
+    } else if (isPlaceholderText(raw)) {
+      found.push(path);
+    }
+  }
+  return found;
+}
+
 function lengthError(
   value: string,
   [min, max]: readonly [number, number] | number[],
@@ -343,6 +432,13 @@ export function validateCampaignInput(raw: unknown): ValidationResult {
 
   value.onlineClues = parseClues(input.onlineClues, "onlineClues", errors);
   value.instoreClues = parseClues(input.instoreClues, "instoreClues", errors);
+
+  // Unfinished Story Lab drafts are rejected here, in both coupon and
+  // product-clue modes, with one error per field. This runs last so the
+  // specific placeholder message replaces a generic length complaint.
+  for (const path of placeholderPaths(value)) {
+    errors[path] = placeholderError(path);
+  }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
   return { ok: true, value };
