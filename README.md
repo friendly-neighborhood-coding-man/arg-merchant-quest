@@ -223,6 +223,8 @@ A separate throwaway campaign id (`cmp_p2_locked`) produced the 0 → 1 case on 
 - `scripts/chain/` — reproducible chain setup, program deploy, selftest and app E2E
 - `docs/DEMO.md` — demo checklist, chain evidence and known limitations
 - `docs/FINAL_DEMO.md` — rehearsed merchant and player demonstration walkthroughs
+- `docs/JUDGE_DEMO.md` — five-minute judge walkthrough
+- `docs/DEPLOYMENT.md` — production configuration (persistent SQLite, server-side AI key, Devnet/MagicBlock settings)
 
 ## Getting started
 
