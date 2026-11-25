@@ -87,6 +87,13 @@ This is a genuine integration failure of the hosted deposit → rollup-spend pat
 with this mint on `devnet-as`, and it is reported as failed rather than papered
 over. Per project rules, no payment is described as having happened.
 
+**Correction and full root cause:** the deposit used the SDK's *shuttle* variant
+(instruction 24) because `idempotent` was never sent, so the credit depends on a
+rollup-side post-delegation merge that never ran. The tokens are intact in the
+mint's global vault. See `docs/P3_NATIVE_PAYMENT_DIAGNOSIS.md` for the account
+reconciliation, the simulation proving the base-layer credit is impossible once
+the eATA is delegated, and the prepared recovery.
+
 ---
 
 ## 4. Cost (approved cap: 0.25 SOL)
@@ -144,19 +151,14 @@ future approval covers the base-layer fee. The mint's transfer queue for
 
 ## 7. What a next attempt needs
 
-A fresh, small authorization (≈0.03 SOL) to try, in order:
+1. one owner-signed `MergeShuttleIntoAta` (data `[15]`) on the rollup — 0 SOL, no
+   new accounts (`scripts/p3/recover-native.mjs`), to apply the pending shuttle
+   credit to the owner eATA;
+2. then the rollup transfer, settlement and inference, all free of chain fees;
+3. MagicBlock support for the stuck queue crank if the merge is rejected —
+   `docs/P3_MAGICBLOCK_SUPPORT_REPORT.md`.
 
-1. a deposit built by the SDK (`delegateSpl` from
-   `@magicblock-labs/ephemeral-rollups-sdk`) instead of the hosted endpoint, then
-   read the eATA before transferring;
-2. if the eATA still reads 0, the same flow on `devnet-private` (TEE), where
-   `private-balance` exposes the credited balance and the docs' auth path is
-   required;
-3. a support question to MagicBlock with the two failing signatures, the deposit
-   signature and the 502 crank error — the queue for this mint on `devnet-as`
-   looks stuck.
-
-Status of this phase:
+Status of this phase (superseded by the recovery phase):
 
 ```
 P3_NATIVE_PAYMENT_IMPLEMENTED_ROLLUP_DEPOSIT_BLOCKED
