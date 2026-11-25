@@ -1,6 +1,6 @@
 # Live demo runbook
 
-Status: P1 “Living ARG”, P1 R2 “Playable Experience & Demo Polish” and P2 “MagicBlock Adaptive Intelligence”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. P2 was proven with two live ER clue handoffs and a Chromium check of the locked and unlocked shared-investigation panel. The live LLM path remains unverified because no provider key was available (see limitations).
+Status: P1 “Living ARG”, P1 R2 “Playable Experience & Demo Polish” and P2 “MagicBlock Adaptive Intelligence”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. P2 was proven with two live ER clue handoffs and a Chromium check of the locked and unlocked shared-investigation panel. The live LLM path now runs on the official Claude API (`claude-opus-5-5`) and was exercised for real on 2026-11-25: model access, a genuine completion, the live Story Lab, a merchant→player publish walk and the unlocked collective reply, with the exact provider bytes recorded (see the Live AI run below).
 
 ## Setup
 
@@ -187,7 +187,113 @@ Screenshots from this run: `artifacts/p04-coupon-desktop.png`, `artifacts/p04-co
 
 ### AI companion setup and context
 
-The companion is a server route (`/api/quests/[slug]/companion`) with GET history and POST message. With `ARG_AI_BASE_URL`, `ARG_AI_MODEL` and `ARG_AI_API_KEY` it calls an OpenAI-compatible chat endpoint; without them, or on any provider error, it answers with a deterministic scripted investigator and includes a note that live AI was unavailable. The prompt contains only the filtered quest view — revealed online/in-store clues, stage, verified state, extended solved state, claim status, released product clue and MagicBlock milestone state — plus prior conversation. It never receives the private counter answer, extended answer, final answer or the unreleased clue. Conversation rows are stored in SQLite and capped for loading; no browser message is trusted as chain state. P2 adds the campaign-wide collective block: phase, eligible-handoff count, ER-live and Solana-committed values and staleness are always described, while the shared evidence text (labelled as a prewritten story fragment) is present in the prompt only when this session is authorized. A verified unlock is stored per `(session, campaign)` in `collective_authorizations`, so a later ER outage keeps the session's earlier access, clearly marked as previously verified with its count and timestamp. History rows that contain fragment text are filtered out of the API response and the provider request unless the current policy allows them.
+The companion is a server route (`/api/quests/[slug]/companion`) with GET history and POST message. With `ARG_AI_BASE_URL`, `ARG_AI_MODEL` and `ARG_AI_API_KEY` it calls an OpenAI-compatible chat endpoint; the defaults target the official Claude API (`https://api.anthropic.com/v1`, model `claude-opus-5-5`) through Anthropic's OpenAI-compatible layer. Without them, or on any provider error, it answers with a deterministic scripted investigator and includes a note that live AI was unavailable. The prompt contains only the filtered quest view — revealed online/in-store clues, stage, verified state, extended solved state, claim status, released product clue and MagicBlock milestone state — plus prior conversation. It never receives the private counter answer, extended answer, final answer or the unreleased clue. Conversation rows are stored in SQLite and capped for loading; no browser message is trusted as chain state. P2 adds the campaign-wide collective block: phase, eligible-handoff count, ER-live and Solana-committed values and staleness are always described, while the shared evidence text (labelled as a prewritten story fragment) is present in the prompt only when this session is authorized. A verified unlock is stored per `(session, campaign)` in `collective_authorizations`, so a later ER outage keeps the session's earlier access, clearly marked as previously verified with its count and timestamp. History rows that contain fragment text are filtered out of the API response and the provider request unless the current policy allows them.
+
+### Claude provider configuration and capture
+
+The defaults point at the official Claude API through Anthropic's OpenAI-compatible
+layer: `ARG_AI_BASE_URL=https://api.anthropic.com/v1`,
+`ARG_AI_MODEL=claude-opus-5-5`, `ARG_AI_API_KEY` server-side only. A request goes
+to `POST /v1/chat/completions` with the key as a bearer token and an
+`anthropic-version` header (`2023-06-01` unless `ARG_AI_VERSION` overrides it).
+`ARG_AI_WORKSPACE_ID` is only needed when the key is not scoped to one workspace.
+
+Claude 4.7 and later — `claude-opus-5-5` included — return HTTP 400 for any
+`temperature` or `top_p` below 1. The client removes both fields before the first
+request for those models, so the companion's 0.6 and the Story Lab's 0.8 are kept
+only on models that accept them (`claude-opus-4-6`, for example). A 400 that names
+`max_tokens` is retried once with `max_completion_tokens`, and any other failure
+reaches the labelled scripted fallback.
+
+To capture the exact provider bytes for evidence, put the loopback proxy in front
+of the app instead of calling Anthropic directly:
+
+```bash
+# terminal 1 — records every request to .data/demo/provider-capture.jsonl
+ARG_UPSTREAM_AI_BASE_URL=https://api.anthropic.com/v1 ARG_AI_API_KEY=... \
+  CAPTURE_PORT=8891 node scripts/demo/provider-capture.mjs
+
+# model access for this key, without spending a completion
+ARG_UPSTREAM_AI_BASE_URL=https://api.anthropic.com/v1 ARG_AI_API_KEY=... \
+  node scripts/demo/provider-capture.mjs --models
+
+# terminal 2 — the app talks only to the proxy
+ARG_AI_BASE_URL=http://127.0.0.1:8891/v1 ARG_AI_MODEL=claude-opus-5-5 npm run dev
+```
+
+`node scripts/demo/provider-capture.mjs --cost 2` prints the organization cost
+report and needs `ARG_ANTHROPIC_ADMIN_KEY`. The promotional credit balance, and
+which credit a call is drawn from, appear only in Console → Billing: the API
+reports spend, not the credit bucket.
+
+Each captured line stores the request messages, parameters, upstream status,
+elapsed time, token usage and the header names sent, with the key redacted. The
+file is gitignored.
+
+### Live AI run (2026-11-25, `claude-opus-5-5`)
+
+Every AI reply below came through `scripts/demo/provider-capture.mjs` on
+`127.0.0.1:8891`, so the request parameters, upstream status, elapsed time and
+token usage were recorded from the wire. The key was never printed or written to
+the capture file.
+
+| Check | Result |
+| --- | --- |
+| Model access (`--models`) | HTTP 200, 14 ids, including `claude-opus-5-5` and `claude-opus-4-6` |
+| Genuine completion | `mode=live`, HTTP 200, 6 440 ms upstream, 2 152 prompt + 558 completion tokens |
+| Hypothesis challenge | live reply names the weakest assumption, separates observed from guessed, ends with a testable question |
+| Collective reply (unlocked) | `mode=live`, 6 069 ms, quotes the shared ledger fragment and labels it shop-written story material |
+| Story Lab | `mode=live`, 31 745 ms, 3 distinct concepts (The Eleventh Repair / Last Leaf Over Yeonnam / Side C), each with a FICTION-marked premise and an instruction-style product clue |
+| Merchant publish walk | `create 201 draft` → `submit pending` → `approve published` → public listing `published` → separate player session `page 200`, `start 200` |
+| Player session in the new campaign | `mode=live`, live reply on The Eleventh Repair |
+| Parameters on the wire | `{model, max_tokens}` only — no `temperature`, because Claude 4.7+ rejects values below 1; `anthropic-version` forwarded |
+
+**Output limits were not sufficient at first, and the fix is measured.** Claude
+Opus 5.5 thinks before answering and those tokens count against `max_tokens`:
+
+| Budget | Observed |
+| --- | --- |
+| Companion `max_tokens` 240 | `finish_reason=length`, 25 characters of visible text, then 0 characters on the next call |
+| Story Lab `max_tokens` 1400 | `finish_reason=length`, no content at all after 16 s |
+| Companion `max_tokens` 1200, timeout 30 s | complete reply, 6.4–7.5 s, ~520–560 completion tokens |
+| Story Lab `max_tokens` 4000, timeout 90 s | valid JSON, 3 concepts, 32 s, 2 832 completion tokens |
+
+A truncated call is no longer reported as a generic empty reply: both callers now
+say the model used the whole output budget before answering, and still fall back
+to the labelled scripted/local path.
+
+**Collective locked versus unlocked.** The unlocked side is real: the Ninth Cup's
+clue milestone read `ER live 3 · Solana committed 3` from
+`https://devnet-as.magicblock.app/` with `authority: live`, and the live reply used
+the fragment. The locked side could **not** be captured in this environment: the
+only campaign with a collective fragment is The Ninth Cup, whose milestone is
+already at 3, and merchant-created campaigns have no fragment by design, so no
+fixture exists with a fragment below the threshold. Lowering the counter on chain
+would be a fake and was not done. The locked provider context is still covered
+deterministically: `tests/collective.test.ts` and the context snapshot show the
+fragment absent from the prompt while the gate is closed, and the scripted locked
+wording was captured in the P2 run above.
+
+**Spend and credit.** The recorded calls used 8 871 prompt + 4 002 completion
+tokens in total (2 152+558, 2 415+517, 336+2 832). The organization cost API
+(`/v1/organizations/cost_report`) returned HTTP 401 with this key — it requires an
+Admin API key — and the promotional credit balance and which credit a call draws
+from are only shown in Console → Billing. Neither was verified here.
+
+**Mobile player check (Chromium, 390 px emulation).** The campaign published in
+this run (The Eleventh Repair) opened at a 390 px viewport with no horizontal
+overflow. On the play page the online trail advanced 0/3 → 3/3, the in-store
+clue button appeared, and the Mara drawer showed `LIVE AI · claude-opus-5-5`.
+A hypothesis typed into the drawer returned a live reply that separated observed
+from guessed and named the weakest assumption (`artifacts/live-mobile-390.png`).
+Evidence upload, operator approval and the Devnet claim were **not** replayed in
+the browser this pass; they are covered by the API walk in this run and by the
+P2 browser run above.
+
+**Not run for this pass:** physical Android/iOS browsers, the `claude-opus-4-6`
+narrative comparison (the client keeps its 0.8 temperature on 4.6, covered by
+tests), and any new chain transaction. No on-chain state was written or altered
+for this evidence.
 
 ### What is real vs simulated
 
@@ -273,5 +379,6 @@ Limitation of this check: clearing the browser context to simulate the second pl
 - [ ] Screen recording
 - [x] Known limitations / demo-only steps
 - [x] P2: ER state changes the companion's permitted context (live two-handoff run above)
+- [x] Live Claude provider path captured (model, status, elapsed ms, `live`)
 
 **Do not mark done until genuinely observed.**

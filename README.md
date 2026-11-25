@@ -97,13 +97,20 @@ The optional mystery is now a physical-product puzzle for campaigns that opt in 
 
 The quest page includes a compact, mobile-friendly companion panel. It answers open questions, summarizes revealed evidence, compares observations, suggests next inspections and refuses to reveal locked clues or final answers. The server builds its context from a **filtered `QuestView`**: revealed clues, stage, timestamps, unlock state and MagicBlock milestone state. Answers, the locked product clue and the final answer are not included.
 
-Configure a live OpenAI-compatible endpoint (all optional):
+Configure a live provider (all optional). The default is the official Claude API
+through Anthropic's OpenAI-compatible layer:
 
 ```bash
-ARG_AI_BASE_URL=https://api.openai.com/v1
-ARG_AI_MODEL=gpt-4.1-mini
+ARG_AI_BASE_URL=https://api.anthropic.com/v1   # default
+ARG_AI_MODEL=claude-opus-5-5
 ARG_AI_API_KEY=...            # server-side only; never commit
 ```
+
+Any other OpenAI-compatible server works by setting `ARG_AI_BASE_URL`. Claude 4.7
+and later reject `temperature`/`top_p` below 1, so the client omits them for those
+models instead of spending a request on a 400; older models keep the tuned value
+(companion 0.6, Story Lab 0.8). `ARG_AI_VERSION` and `ARG_AI_WORKSPACE_ID` are
+optional and used only for Anthropic.
 
 Without a key, or when the provider fails, the app answers with a deterministic scripted investigator (“Mara”) and labels the response as a scripted fallback; it never presents the fallback as live inference. Conversation history is stored per quest session in SQLite (last 40 messages loaded), and the existing 3/5-minute explicit hint gates are unchanged. The companion is not a hint bypass: it can discuss revealed material at any time and says when a stronger hint is still time-locked.
 
@@ -283,7 +290,7 @@ To see the 3/5-minute hints without waiting, start a quest and then shift that s
 - The reward and the coupon are independent: a coupon is issued for a solved extended mystery even if the player never claims a payout or the payout fails.
 - Campaign slugs do not change on title edits; published campaigns remain uneditable.
 - **The product clue is a simulation.** There is no real purchase, POS, payment, inventory or delivery integration. `/staff` confirms a fictional handoff by hand, and the “physical” clue is a digital prop preview. The demo must not be presented as a real product offer.
-- **The live AI path was not exercised** because no provider key was available in this environment. The scripted fallback, provider-failure fallback, reasoning prompts, repetition handling and context filtering were tested; the OpenAI-compatible request path (including the `max_completion_tokens` retry) is implemented but unverified against a live model.
+- **Live AI was exercised on 2026-11-25 against the official Claude API** (`claude-opus-5-5`, OpenAI-compatible layer): model listing, a genuine companion completion, the live Story Lab (three concepts), a merchant→player publish walk and the unlocked collective reply, all recorded through the loopback capture proxy. Claude 4.7+ rejects `temperature` below 1, so it is omitted for those models, and `max_tokens` had to rise to 1200 (companion) / 4000 (Story Lab) because Opus 5.5's thinking counts against that budget. Not covered: a locked collective reply (no fixture below the threshold exists), the `claude-opus-4-6` narrative comparison, and physical devices. See `docs/DEMO.md`.
 - The companion is a narrative aid, not an oracle or a moderation system. It can still be prompted adversarially, and its output is not fact-checked; it is given no private answers or locked clue text.
 - **Browser checks are viewport-level, not device-level.** R2 was exercised in the Cloud Chromium browser at 375/390/768/1280 px, including the full Ninth Cup and Midnight Jar journeys. Physical iOS/Android devices, real cameras, screen readers and native browser chrome were not tested; the in-app camera fallback and labelled simulation were the only capture paths used.
 - The clue milestone uses the existing deployed program and a derived campaign id. It is a second counter account, not a general-purpose on-chain game state; conversation, location and answers are never written on chain.

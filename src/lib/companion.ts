@@ -8,6 +8,7 @@ import {
   type CollectivePhase,
 } from "./collective";
 import type { QuestView } from "./quest-store";
+import { postChatCompletion } from "./ai-provider";
 
 /**
  * P1 investigation companion.
@@ -17,7 +18,9 @@ import type { QuestView } from "./quest-store";
  * story. The answer fields, the unreleased product clue and the hidden ending
  * are not in that view, so they cannot be sent to a model by accident.
  *
- * A configured OpenAI-compatible provider is used when ARG_AI_API_KEY is set.
+ * A configured Claude (or other OpenAI-compatible) provider is used when
+ * ARG_AI_API_KEY is set. The request temperature is only sent when the model
+ * accepts one; Claude 4.7 and later reject values below 1.
  * Without a key (or when the provider fails) a deterministic scripted guide
  * answers instead and says so. The scripted path never gives the final answer.
  */
@@ -48,11 +51,6 @@ export function companionConfigured(): boolean {
 
 export function companionModelName(): string | null {
   return process.env.ARG_AI_MODEL ?? null;
-}
-
-function providerUrl(): string {
-  const base = (process.env.ARG_AI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
-  return `${base}/chat/completions`;
 }
 
 /**
@@ -344,66 +342,44 @@ async function callProvider(
   view: QuestView,
   message: string,
 ): Promise<CompanionReply> {
-  const key = process.env.ARG_AI_API_KEY as string;
   const model = process.env.ARG_AI_MODEL as string;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 20_000);
-  const payload: Record<string, unknown> = {
-    model,
-    temperature: 0.6,
-    max_tokens: 240,
-    messages: buildProviderMessages(context, view, message),
-  };
-
-  async function request(body: Record<string, unknown>): Promise<Response> {
-    try {
-      return await fetch(providerUrl(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (controller.signal.aborted) {
-        throw new Error("AI provider timed out after 20 seconds.");
-      }
-      throw error;
-    }
-  }
-
-  try {
-    let response = await request(payload);
-    // OpenAI's newer models renamed `max_tokens` to `max_completion_tokens`.
-    // Compatible servers vary, so retry once only when the error explicitly
-    // names the parameter; every other provider failure goes to the fallback.
-    if (response.status === 400) {
-      const detail = await response.text();
-      if (/max_tokens|max_completion_tokens/i.test(detail)) {
-        delete payload.max_tokens;
-        payload.max_completion_tokens = 240;
-        response = await request(payload);
-      }
-    }
-    if (!response.ok) {
-      throw new Error(`AI provider returned HTTP ${response.status}.`);
-    }
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const text = data.choices?.[0]?.message?.content?.trim();
-    if (!text) throw new Error("AI provider returned an empty reply.");
-    return {
-      reply: text.slice(0, MAX_REPLY_CHARS),
-      mode: "live",
+  // The shared client retries once when the provider rejects max_tokens or
+  // temperature; every other failure goes to the labelled scripted fallback.
+  // Claude Opus 5.5 thinks before it answers and counts those tokens against
+  // max_tokens: a 240-token ceiling produced "The weakest assumption is" and
+  // stopped, and a second call returned no text at all. 1200 leaves room for a
+  // short reply plus that reasoning; the measured reply still fits the
+  // 900-character cap below.
+  const { response } = await postChatCompletion({
+    apiKey: process.env.ARG_AI_API_KEY as string,
+    timeoutMs: 30_000,
+    payload: {
       model,
-      note: null,
-    };
-  } finally {
-    clearTimeout(timer);
+      temperature: 0.6,
+      max_tokens: 1200,
+      messages: buildProviderMessages(context, view, message),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`AI provider returned HTTP ${response.status}.`);
   }
+  const data = (await response.json()) as {
+    choices?: Array<{ finish_reason?: string; message?: { content?: string } }>;
+  };
+  const text = data.choices?.[0]?.message?.content?.trim();
+  if (!text) {
+    throw new Error(
+      data.choices?.[0]?.finish_reason === "length"
+        ? "The model used the whole output budget before answering."
+        : "AI provider returned an empty reply.",
+    );
+  }
+  return {
+    reply: text.slice(0, MAX_REPLY_CHARS),
+    mode: "live",
+    model,
+    note: null,
+  };
 }
 
 /** The public question the player is currently working on, if any. */

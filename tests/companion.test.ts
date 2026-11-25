@@ -198,9 +198,9 @@ test("provider compatibility: a max_tokens rejection retries once with max_compl
     const result = await answerCompanionMessage(run.sessionId, run.view(), "Compare the two records?");
     assert.equal(result.mode, "live");
     assert.equal(bodies.length, 2);
-    assert.equal(bodies[0].max_tokens, 240);
+    assert.equal(bodies[0].max_tokens, 1200);
     assert.equal(bodies[1].max_tokens, undefined);
-    assert.equal(bodies[1].max_completion_tokens, 240);
+    assert.equal(bodies[1].max_completion_tokens, 1200);
     assert.deepEqual(bodies[0].messages, bodies[1].messages);
   } finally {
     globalThis.fetch = realFetch;
@@ -289,5 +289,116 @@ test("live provider request: the current message appears exactly once, history i
     delete process.env.ARG_AI_API_KEY;
     delete process.env.ARG_AI_MODEL;
     delete process.env.ARG_AI_BASE_URL;
+  }
+});
+
+test("provider compatibility: a temperature rejection retries once without temperature", async () => {
+  const run = playTo(campaignBySlug(NINTH_CUP.slug), NINTH_CUP.answers, "started", nextPlayer());
+  const bodies: Array<Record<string, unknown>> = [];
+  const realFetch = globalThis.fetch;
+  process.env.ARG_AI_API_KEY = "test-key-not-real";
+  process.env.ARG_AI_MODEL = "reasoning-model";
+  process.env.ARG_AI_BASE_URL = "http://provider.invalid/v1";
+  let call = 0;
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    call += 1;
+    if (call === 1) {
+      return new Response("Unsupported value: 'temperature' does not support 0.6 with this model.", {
+        status: 400,
+      });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: "live without temperature" } }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    const result = await answerCompanionMessage(run.sessionId, run.view(), "What next?");
+    assert.equal(result.mode, "live");
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0].temperature, 0.6);
+    assert.equal(bodies[1].temperature, undefined);
+    assert.equal(bodies[1].max_tokens, 1200);
+    assert.deepEqual(bodies[0].messages, bodies[1].messages);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ARG_AI_API_KEY;
+    delete process.env.ARG_AI_MODEL;
+    delete process.env.ARG_AI_BASE_URL;
+  }
+});
+
+test("an unrelated provider rejection is not retried and falls back to the scripted guide", async () => {
+  const run = playTo(campaignBySlug(NINTH_CUP.slug), NINTH_CUP.answers, "started", nextPlayer());
+  const realFetch = globalThis.fetch;
+  process.env.ARG_AI_API_KEY = "test-key-not-real";
+  process.env.ARG_AI_MODEL = "test-model";
+  process.env.ARG_AI_BASE_URL = "http://provider.invalid/v1";
+  let calls = 0;
+  globalThis.fetch = (async () => {
+    calls += 1;
+    return new Response("insufficient_quota", { status: 429 });
+  }) as typeof fetch;
+  try {
+    const result = await answerCompanionMessage(run.sessionId, run.view(), "Give me a hint");
+    assert.equal(result.mode, "scripted_fallback");
+    assert.equal(calls, 1);
+    assert.match(result.note ?? "", /HTTP 429/);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ARG_AI_API_KEY;
+    delete process.env.ARG_AI_MODEL;
+    delete process.env.ARG_AI_BASE_URL;
+  }
+});
+
+test("Claude default: official API base, version header, and no temperature below 1 for 4.7+ models", async () => {
+  const run = playTo(campaignBySlug(NINTH_CUP.slug), NINTH_CUP.answers, "started", nextPlayer());
+  const captured: Array<{
+    url: string;
+    authorization: string | null;
+    version: string | null;
+    body: Record<string, unknown>;
+  }> = [];
+  const realFetch = globalThis.fetch;
+  process.env.ARG_AI_API_KEY = "test-key-not-real";
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    captured.push({
+      url: String(url),
+      authorization: headers.get("authorization"),
+      version: headers.get("anthropic-version"),
+      body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+    });
+    return new Response(JSON.stringify({ choices: [{ message: { content: "live reply" } }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    process.env.ARG_AI_MODEL = "claude-opus-5-5";
+    const first = await answerCompanionMessage(run.sessionId, run.view(), "What next?");
+    process.env.ARG_AI_MODEL = "claude-opus-4-6";
+    const second = await answerCompanionMessage(run.sessionId, run.view(), "And after that?");
+
+    assert.equal(first.mode, "live");
+    assert.equal(second.mode, "live");
+    assert.equal(captured.length, 2);
+    assert.equal(captured[0].url, "https://api.anthropic.com/v1/chat/completions");
+    assert.equal(captured[0].authorization, "Bearer test-key-not-real");
+    assert.equal(captured[0].version, "2023-06-01");
+
+    // claude-opus-5-5 rejects any temperature below 1 with a 400, so none is sent.
+    assert.equal(captured[0].body.temperature, undefined);
+    assert.equal(captured[0].body.top_p, undefined);
+    assert.equal(captured[0].body.max_tokens, 1200);
+    // claude-opus-4-6 still accepts one, so the tuned value is kept.
+    assert.equal(captured[1].body.temperature, 0.6);
+    assert.equal(captured[1].version, "2023-06-01");
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ARG_AI_API_KEY;
+    delete process.env.ARG_AI_MODEL;
   }
 });

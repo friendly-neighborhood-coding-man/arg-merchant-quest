@@ -190,3 +190,72 @@ test("an incomplete concept cannot enter the review queue, a completed one can",
   const submitted = submitCampaignForReview(finished.id, merchant.id);
   assert.equal(submitted.ok, true, submitted.ok ? "" : submitted.error);
 });
+
+test("Story Lab retries once when a newer model rejects max_tokens", async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  const realFetch = globalThis.fetch;
+  process.env.ARG_AI_API_KEY = "test-key-not-real";
+  process.env.ARG_AI_MODEL = "newer-model";
+  process.env.ARG_AI_BASE_URL = "http://provider.invalid/v1";
+  let call = 0;
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    call += 1;
+    if (call === 1) {
+      return new Response("Unsupported parameter: 'max_tokens' is not supported with this model.", { status: 400 });
+    }
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify({ concepts: [concept] }) } }] }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+  try {
+    const result = await generateStoryIdeas(input);
+    assert.equal(result.mode, "live");
+    assert.equal(result.model, "newer-model");
+    assert.equal(bodies.length, 2);
+    assert.equal(bodies[0].max_tokens, 4000);
+    assert.equal(bodies[1].max_tokens, undefined);
+    assert.equal(bodies[1].max_completion_tokens, 4000);
+    assert.equal(result.concepts[0]?.title, concept.title);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ARG_AI_API_KEY;
+    delete process.env.ARG_AI_MODEL;
+    delete process.env.ARG_AI_BASE_URL;
+  }
+});
+
+test("Story Lab keeps its narrative temperature on Claude 4.6 and omits it on 4.7+", async () => {
+  const bodies: Array<Record<string, unknown>> = [];
+  const urls: string[] = [];
+  const realFetch = globalThis.fetch;
+  process.env.ARG_AI_API_KEY = "test-key-not-real";
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    urls.push(String(url));
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content: JSON.stringify({ concepts: [concept] }) } }] }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }) as typeof fetch;
+  try {
+    process.env.ARG_AI_MODEL = "claude-opus-4-6";
+    const older = await generateStoryIdeas(input);
+    process.env.ARG_AI_MODEL = "claude-opus-5-5";
+    const newer = await generateStoryIdeas(input);
+
+    assert.equal(older.mode, "live");
+    assert.equal(newer.mode, "live");
+    assert.equal(urls[0], "https://api.anthropic.com/v1/chat/completions");
+    assert.equal(bodies[0].temperature, 0.8);
+    assert.equal(bodies[0].max_tokens, 4000);
+    assert.equal(bodies[1].temperature, undefined);
+    assert.equal(bodies[1].max_tokens, 4000);
+    assert.equal(newer.concepts[0]?.title, concept.title);
+  } finally {
+    globalThis.fetch = realFetch;
+    delete process.env.ARG_AI_API_KEY;
+    delete process.env.ARG_AI_MODEL;
+  }
+});

@@ -125,7 +125,7 @@ PLAYER quest view --> optional.clue released only now
 COMPANION POST /api/quests/[slug]/companion
    filtered QuestView (no answers, no locked clue)
         |
-   ARG_AI_* configured ? OpenAI-compatible call : scripted Mara
+   ARG_AI_* configured ? Claude chat-completions call : scripted Mara
         |
    companion_messages (per session, capped load)
 ```

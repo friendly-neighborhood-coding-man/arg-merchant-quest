@@ -7,6 +7,8 @@
  * is a draft, and no historical fact is presented as verified.
  */
 
+import { postChatCompletion } from "./ai-provider";
+
 export interface StoryLabInput {
   businessName: string;
   location: string;
@@ -113,46 +115,49 @@ function providerConfigured(): boolean {
 }
 
 async function liveDrafts(input: StoryLabInput): Promise<StoryConcept[]> {
-  const base = (process.env.ARG_AI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-  try {
-    const response = await fetch(`${base}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.ARG_AI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: process.env.ARG_AI_MODEL,
-        temperature: 0.8,
-        max_tokens: 1400,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You draft location-based ARG campaigns for small shops. Return strict JSON: {\"concepts\":[{\"title\",\"premise\",\"onlineClues\":[3 strings],\"instoreObservation\",\"productClue\",\"basicPuzzle\",\"hiddenEnding\"}]} with exactly 3 concepts. Use the merchant's facts as facts, but never invent a historical claim and present it as verified. Mark invented backstory as fiction inside the premise. The product clue must contain an instruction that combines with earlier evidence. No real payments, no first-finder mechanics.",
-          },
-          {
-            role: "user",
-            content: JSON.stringify(input),
-          },
-        ],
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}.`);
-    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    const content = data.choices?.[0]?.message?.content ?? "";
-    const match = content.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("The model did not return JSON.");
-    const parsed = JSON.parse(match[0]) as { concepts?: StoryConcept[] };
-    const concepts = (parsed.concepts ?? []).slice(0, 3);
-    if (concepts.length < 1) throw new Error("The model returned no concepts.");
-    return concepts;
-  } finally {
-    clearTimeout(timer);
+  // Same shared client as the companion: one retry each when a newer model
+  // rejects max_tokens or temperature, then a real failure for the fallback.
+  // Three concepts of JSON is a large answer, and Claude Opus 5.5 spends part of
+  // the same budget thinking: at 1400 the measured call hit finish_reason
+  // "length" with no content at all after 16 s. 4000 and a 90 s timeout leave
+  // room for the JSON plus that reasoning on a live demo machine.
+  const { response } = await postChatCompletion({
+    apiKey: process.env.ARG_AI_API_KEY as string,
+    timeoutMs: 90_000,
+    payload: {
+      model: process.env.ARG_AI_MODEL,
+      temperature: 0.8,
+      max_tokens: 4000,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You draft location-based ARG campaigns for small shops. Return strict JSON: {\"concepts\":[{\"title\",\"premise\",\"onlineClues\":[3 strings],\"instoreObservation\",\"productClue\",\"basicPuzzle\",\"hiddenEnding\"}]} with exactly 3 concepts. Use the merchant's facts as facts, but never invent a historical claim and present it as verified. Mark invented backstory as fiction inside the premise. The product clue must contain an instruction that combines with earlier evidence. No real payments, no first-finder mechanics.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(input),
+        },
+      ],
+    },
+  });
+  if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}.`);
+  const data = (await response.json()) as {
+    choices?: Array<{ finish_reason?: string; message?: { content?: string } }>;
+  };
+  const content = data.choices?.[0]?.message?.content ?? "";
+  const match = content.match(/\{[\s\S]*\}/);
+  if (!match) {
+    throw new Error(
+      data.choices?.[0]?.finish_reason === "length"
+        ? "The model used the whole output budget before returning JSON."
+        : "The model did not return JSON.",
+    );
   }
+  const parsed = JSON.parse(match[0]) as { concepts?: StoryConcept[] };
+  const concepts = (parsed.concepts ?? []).slice(0, 3);
+  if (concepts.length < 1) throw new Error("The model returned no concepts.");
+  return concepts;
 }
 
 export async function generateStoryIdeas(input: StoryLabInput): Promise<StoryLabResult> {
