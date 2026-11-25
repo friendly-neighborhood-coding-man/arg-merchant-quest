@@ -43,6 +43,15 @@ export interface AiIntent {
   paidAt: string | null;
   chargeId: string | null;
   fundedByGrant: string | null;
+  /** "er" for a MagicBlock Ephemeral Rollup payment, "base" for Solana Pay. */
+  settlement: "er" | "base";
+  depositSignature: string | null;
+  validator: string | null;
+  erEndpoint: string | null;
+  payerBalanceBefore: number | null;
+  payerBalanceAfter: number | null;
+  receiverBalanceBefore: number | null;
+  receiverBalanceAfter: number | null;
 }
 
 export interface AiCharge {
@@ -115,7 +124,35 @@ function ensureTables(): void {
        used_at TEXT
      )`,
   ).run();
+  migrateIntentColumns();
   ensured = true;
+}
+
+/**
+ * Additive migration for databases created before the native rollup path. The
+ * columns are nullable, so an existing local database keeps working unchanged.
+ */
+function migrateIntentColumns(): void {
+  const db = getDb();
+  const existing = new Set(
+    (db.prepare("PRAGMA table_info(ai_payment_intents)").all() as Array<{ name: string }>).map(
+      (column) => column.name,
+    ),
+  );
+  const additions: Array<[string, string]> = [
+    ["settlement", "TEXT NOT NULL DEFAULT 'base'"],
+    ["deposit_signature", "TEXT"],
+    ["validator", "TEXT"],
+    ["er_endpoint", "TEXT"],
+    ["payer_balance_before", "INTEGER"],
+    ["payer_balance_after", "INTEGER"],
+    ["receiver_balance_before", "INTEGER"],
+    ["receiver_balance_after", "INTEGER"],
+  ];
+  for (const [name, type] of additions) {
+    if (existing.has(name)) continue;
+    db.prepare(`ALTER TABLE ai_payment_intents ADD COLUMN ${name} ${type}`).run();
+  }
 }
 
 interface IntentRow {
@@ -137,6 +174,14 @@ interface IntentRow {
   paid_at: string | null;
   charge_id: string | null;
   funded_by_grant: string | null;
+  settlement: "er" | "base" | null;
+  deposit_signature: string | null;
+  validator: string | null;
+  er_endpoint: string | null;
+  payer_balance_before: number | null;
+  payer_balance_after: number | null;
+  receiver_balance_before: number | null;
+  receiver_balance_after: number | null;
 }
 
 function toIntent(row: IntentRow): AiIntent {
@@ -159,6 +204,14 @@ function toIntent(row: IntentRow): AiIntent {
     paidAt: row.paid_at,
     chargeId: row.charge_id,
     fundedByGrant: row.funded_by_grant,
+    settlement: row.settlement === "er" ? "er" : "base",
+    depositSignature: row.deposit_signature ?? null,
+    validator: row.validator ?? null,
+    erEndpoint: row.er_endpoint ?? null,
+    payerBalanceBefore: row.payer_balance_before ?? null,
+    payerBalanceAfter: row.payer_balance_after ?? null,
+    receiverBalanceBefore: row.receiver_balance_before ?? null,
+    receiverBalanceAfter: row.receiver_balance_after ?? null,
   };
 }
 
@@ -176,6 +229,9 @@ export function createIntent(input: {
   now?: Date;
   status?: "quoted" | "paid";
   fundedByGrant?: string | null;
+  settlement?: "er" | "base";
+  validator?: string | null;
+  erEndpoint?: string | null;
 }): AiIntent {
   ensureTables();
   const now = input.now ?? new Date();
@@ -184,8 +240,9 @@ export function createIntent(input: {
     .prepare(
       `INSERT INTO ai_payment_intents
          (id, session_id, campaign_id, reference, mint, receiver, receiver_ata, amount_base_units,
-          request_hash, question, status, created_at, expires_at, signature, payer, paid_at, charge_id, funded_by_grant)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?)`,
+          request_hash, question, status, created_at, expires_at, signature, payer, paid_at, charge_id,
+          funded_by_grant, settlement, validator, er_endpoint)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, NULL, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -203,6 +260,9 @@ export function createIntent(input: {
       new Date(now.getTime() + input.ttlMs).toISOString(),
       input.status === "paid" ? now.toISOString() : null,
       input.fundedByGrant ?? null,
+      input.settlement ?? "base",
+      input.validator ?? null,
+      input.erEndpoint ?? null,
     );
   const created = getIntent(id);
   if (!created) throw new Error("The AI payment intent was not stored.");
@@ -270,11 +330,22 @@ export type ClaimResult =
   | { ok: false; code: "not_found" | "already_paid" | "expired" | "signature_replayed"; reason: string };
 
 /** Bind one verified chain signature to one intent, exactly once. */
+export interface ErClaimEvidence {
+  depositSignature: string | null;
+  validator: string | null;
+  erEndpoint: string | null;
+  payerBalanceBefore: number | null;
+  payerBalanceAfter: number | null;
+  receiverBalanceBefore: number | null;
+  receiverBalanceAfter: number | null;
+}
+
 export function claimPayment(
   intentId: string,
   signature: string,
   payer: string,
   now: Date = new Date(),
+  er?: ErClaimEvidence,
 ): ClaimResult {
   ensureTables();
   const db = getDb();
@@ -295,13 +366,37 @@ export function claimPayment(
       reason: "That transaction has already paid for another request.",
     };
   }
-  const result = db
-    .prepare(
-      `UPDATE ai_payment_intents
-       SET status = 'paid', signature = ?, payer = ?, paid_at = ?
-       WHERE id = ? AND status = 'quoted' AND expires_at > ?`,
-    )
-    .run(signature, payer, now.toISOString(), intentId, now.toISOString());
+  const result = er
+    ? db
+        .prepare(
+          `UPDATE ai_payment_intents
+           SET status = 'paid', signature = ?, payer = ?, paid_at = ?, settlement = 'er',
+               deposit_signature = ?, validator = ?, er_endpoint = ?,
+               payer_balance_before = ?, payer_balance_after = ?,
+               receiver_balance_before = ?, receiver_balance_after = ?
+           WHERE id = ? AND status = 'quoted' AND expires_at > ?`,
+        )
+        .run(
+          signature,
+          payer,
+          now.toISOString(),
+          er.depositSignature,
+          er.validator,
+          er.erEndpoint,
+          er.payerBalanceBefore,
+          er.payerBalanceAfter,
+          er.receiverBalanceBefore,
+          er.receiverBalanceAfter,
+          intentId,
+          now.toISOString(),
+        )
+    : db
+        .prepare(
+          `UPDATE ai_payment_intents
+           SET status = 'paid', signature = ?, payer = ?, paid_at = ?
+           WHERE id = ? AND status = 'quoted' AND expires_at > ?`,
+        )
+        .run(signature, payer, now.toISOString(), intentId, now.toISOString());
   if (result.changes !== 1) {
     return {
       ok: false,
@@ -312,6 +407,55 @@ export function claimPayment(
   const intent = getIntent(intentId);
   if (!intent) return { ok: false, code: "not_found", reason: "That request does not exist." };
   return { ok: true, intent };
+}
+
+/**
+ * Persist the rollup transaction a native payment produced, before it is allowed
+ * to count as paid. Settlement re-reads that exact signature from the rollup, so
+ * a client can never supply its own "successful" signature.
+ */
+export function recordNativeSubmission(
+  intentId: string,
+  input: {
+    signature: string;
+    depositSignature: string | null;
+    payer: string;
+    validator: string;
+    erEndpoint: string;
+    payerBalanceBefore: number | null;
+    payerBalanceAfter: number | null;
+    receiverBalanceBefore: number | null;
+    receiverBalanceAfter: number | null;
+  },
+): boolean {
+  ensureTables();
+  try {
+    const result = getDb()
+      .prepare(
+      `UPDATE ai_payment_intents
+       SET signature = ?, payer = ?, settlement = 'er', deposit_signature = ?, validator = ?,
+           er_endpoint = ?, payer_balance_before = ?, payer_balance_after = ?,
+           receiver_balance_before = ?, receiver_balance_after = ?
+       WHERE id = ? AND status = 'quoted' AND (signature IS NULL OR signature = ?)`,
+    )
+    .run(
+      input.signature,
+      input.payer,
+      input.depositSignature,
+      input.validator,
+      input.erEndpoint,
+      input.payerBalanceBefore,
+      input.payerBalanceAfter,
+      input.receiverBalanceBefore,
+      input.receiverBalanceAfter,
+        intentId,
+        input.signature,
+      );
+    return result.changes === 1;
+  } catch {
+    // A signature is UNIQUE: two quotes can never share one rollup payment.
+    return false;
+  }
 }
 
 export type ChargeStart =

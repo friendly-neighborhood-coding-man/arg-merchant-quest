@@ -19,6 +19,14 @@ interface AiState {
   remainingToday: number | null;
   refundCredits: number;
   disclosure: string;
+  native?: {
+    available: boolean;
+    reason: string | null;
+    validator: string | null;
+    demoPayer: string | null;
+    mintInitialized: boolean | null;
+    label: string;
+  };
 }
 
 const STARTERS = [
@@ -46,10 +54,16 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
   const [mode, setMode] = useState<"live" | "scripted" | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const [ai, setAi] = useState<AiState | null>(null);
-  const [quote, setQuote] = useState<{ intentId: string; priceLabel: string; payUri: string | null } | null>(null);
+  const [quote, setQuote] = useState<{
+    intentId: string;
+    priceLabel: string;
+    payUri: string | null;
+    settlement: "er" | "base";
+  } | null>(null);
   const [deepBusy, setDeepBusy] = useState(false);
   const [deepError, setDeepError] = useState<string | null>(null);
   const [deepReceipt, setDeepReceipt] = useState<string | null>(null);
+  const [rollupSteps, setRollupSteps] = useState<string[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
@@ -217,9 +231,48 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
         intentId: String(data.intentId),
         priceLabel: String(data.priceLabel ?? ""),
         payUri: typeof data.payUri === "string" ? data.payUri : null,
+        settlement: data.settlement === "er" ? "er" : "base",
       });
+      setRollupSteps([]);
     } catch {
       setDeepError("Could not reach the server to issue a quote.");
+    } finally {
+      setDeepBusy(false);
+    }
+  }
+
+  /**
+   * Native path: the server runs the deposit (only if needed) and the transfer
+   * inside the MagicBlock Ephemeral Rollup, then re-reads the rollup transaction
+   * before inference is allowed. Every line shown here is a real signature.
+   */
+  async function payOnRollup() {
+    if (!quote) return;
+    setDeepBusy(true);
+    setDeepError(null);
+    setRollupSteps([]);
+    try {
+      const prepared = await aiPost({ action: "er_prepare", intentId: quote.intentId });
+      if (!prepared.ok) {
+        setDeepError(String(prepared.reason ?? "The rollup payment did not go through."));
+        return;
+      }
+      const steps: string[] = [];
+      if (prepared.depositSignature) steps.push(`deposit (base layer) · ${prepared.depositSignature}`);
+      if (prepared.receiverSetupSignature) {
+        steps.push(`recipient rollup account · ${prepared.receiverSetupSignature}`);
+      }
+      steps.push(`ER transfer · ${prepared.transferSignature}`);
+      setRollupSteps(steps);
+
+      const settled = await aiPost({ action: "settle_er", intentId: quote.intentId });
+      if (!settled.ok) {
+        setDeepError(String(settled.reason ?? "The rollup transaction could not be verified."));
+        return;
+      }
+      await investigate(quote.intentId);
+    } catch {
+      setDeepError("Could not reach the server to run the rollup payment.");
     } finally {
       setDeepBusy(false);
     }
@@ -385,24 +438,61 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
                     {ai.remainingToday ?? 0} left today
                     {ai.refundCredits > 0 ? ` · ${ai.refundCredits} refund credit` : ""}
                   </p>
+                  <p className="text-[9.5px] leading-snug text-sage/40">
+                    {ai.native?.available
+                      ? `Rollup payments ready · validator ${ai.native.validator?.slice(0, 8)}… · payer ${ai.native.demoPayer?.slice(0, 6)}…`
+                      : (ai.native?.reason ?? "Rollup payments unavailable; base-layer fallback only.")}
+                  </p>
                   {quote ? (
                     <div className="mt-1.5 space-y-1">
-                      {quote.payUri ? (
-                        <a
-                          className="block truncate rounded border border-mint/30 px-2 py-1 text-[10px] text-mint/80"
-                          href={quote.payUri}
-                        >
-                          Open in wallet · {quote.priceLabel}
-                        </a>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => void verifyDeep()}
-                        disabled={deepBusy}
-                        className="rounded border border-mint/35 px-2 py-1 text-[10.5px] text-mint/85 disabled:opacity-50"
-                      >
-                        {deepBusy ? "Checking Devnet…" : "I paid — verify"}
-                      </button>
+                      {quote.settlement === "er" ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => void payOnRollup()}
+                            disabled={deepBusy}
+                            className="w-full rounded border border-mint/40 bg-mint/[0.08] px-2 py-1.5 text-[10.5px] font-semibold text-mint/90 disabled:opacity-50"
+                          >
+                            {deepBusy
+                              ? "Paying inside the rollup…"
+                              : `Pay ${quote.priceLabel} on MagicBlock`}
+                          </button>
+                          <p className="text-[9.5px] leading-snug text-sage/45">
+                            Ephemeral Rollup payment of the visit token · ER confirmation, not L1
+                            settlement.
+                          </p>
+                          {quote.payUri ? (
+                            <a
+                              className="block truncate rounded border border-line/70 px-2 py-1 text-[9.5px] text-sage/55"
+                              href={quote.payUri}
+                            >
+                              Fallback: ordinary Solana Pay transfer (base layer, not rollup)
+                            </a>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {quote.payUri ? (
+                            <a
+                              className="block truncate rounded border border-mint/30 px-2 py-1 text-[10px] text-mint/80"
+                              href={quote.payUri}
+                            >
+                              Open in wallet · {quote.priceLabel}
+                            </a>
+                          ) : null}
+                          <p className="text-[9.5px] leading-snug text-sage/45">
+                            Base-layer Solana Pay transfer (fallback) — not a rollup payment.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => void verifyDeep()}
+                            disabled={deepBusy}
+                            className="rounded border border-mint/35 px-2 py-1 text-[10.5px] text-mint/85 disabled:opacity-50"
+                          >
+                            {deepBusy ? "Checking Devnet…" : "I paid — verify"}
+                          </button>
+                        </>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -418,6 +508,15 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
               ) : (
                 <p className="mt-1 text-[10.5px] text-sage/50">{ai.reason ?? "Unavailable."}</p>
               )}
+              {rollupSteps.length > 0 ? (
+                <ul className="mt-1 space-y-0.5">
+                  {rollupSteps.map((step) => (
+                    <li key={step} className="truncate text-[9.5px] text-mint/65">
+                      {step}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {deepReceipt ? (
                 <p className="mt-1 text-[10px] leading-snug break-words text-mint/70">{deepReceipt}</p>
               ) : null}

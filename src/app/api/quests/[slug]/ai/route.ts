@@ -3,8 +3,11 @@ import { getSession, getQuestView } from "@/lib/quest-store";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
 import {
   aiAccessState,
+  attachNativeSubmission,
+  prepareNativeQuote,
   quoteDeepInvestigation,
   runDeepInvestigation,
+  settleNativeQuote,
   settleQuote,
 } from "@/lib/ai-payments/service";
 
@@ -14,9 +17,10 @@ export const dynamic = "force-dynamic";
  * Token-funded deep investigation.
  *
  * GET  — price, token balance, open quotes, refund credits and receipts.
- * POST — action "quote" (bind a question to a price), "settle" (find and verify
- *        the Devnet payment for that quote) or "investigate" (run the one paid
- *        Claude call and return its receipt).
+ * POST — action "quote" (bind a question to a price), "er_prepare" (execute the
+ *        MagicBlock rollup payment for that quote), "settle_er" (re-verify that
+ *        rollup transaction), "settle" (base-layer Solana Pay fallback) or
+ *        "investigate" (run the one paid Claude call and return its receipt).
  *
  * The route never accepts a client-reported balance or "I paid" flag. Payment
  * comes only from a verified on-chain transfer carrying the quote's reference.
@@ -62,8 +66,45 @@ export async function POST(request: Request, context: { params: Promise<{ slug: 
       return jsonError("Write the question you want investigated first.", 400);
     }
     if (question.length > 700) return jsonError("Keep the question under 700 characters.", 400);
-    const outcome = await quoteDeepInvestigation(view, question);
+    const mode = (body as { mode?: unknown })?.mode;
+    const outcome = await quoteDeepInvestigation(
+      view,
+      question,
+      new Date(),
+      mode === "base" ? { settlement: "base" } : {},
+    );
     if (!outcome.ok) return NextResponse.json({ ...outcome }, { status: 409 });
+    return NextResponse.json({ ...outcome });
+  }
+
+  if (action === "er_prepare") {
+    const intentId = (body as { intentId?: unknown })?.intentId;
+    if (typeof intentId !== "string" || !intentId) return jsonError("Which quote?", 400);
+    const outcome = await prepareNativeQuote(view, intentId);
+    if (!outcome.ok) {
+      const status = outcome.code === "already_paid" ? 200 : 409;
+      return NextResponse.json({ ...outcome }, { status });
+    }
+    return NextResponse.json({ ...outcome });
+  }
+
+  if (action === "er_attach") {
+    const intentId = (body as { intentId?: unknown })?.intentId;
+    const signature = (body as { signature?: unknown })?.signature;
+    if (typeof intentId !== "string" || !intentId) return jsonError("Which quote?", 400);
+    if (typeof signature !== "string" || !signature) return jsonError("Which transaction?", 400);
+    const outcome = await attachNativeSubmission(view, intentId, signature);
+    if (!outcome.ok) return NextResponse.json({ ...outcome }, { status: 409 });
+    return NextResponse.json({ ...outcome });
+  }
+
+  if (action === "settle_er") {
+    const intentId = (body as { intentId?: unknown })?.intentId;
+    if (typeof intentId !== "string" || !intentId) return jsonError("Which quote?", 400);
+    const outcome = await settleNativeQuote(view, intentId);
+    if (!outcome.ok) {
+      return NextResponse.json({ ...outcome }, { status: outcome.status === "pending" ? 202 : 409 });
+    }
     return NextResponse.json({ ...outcome });
   }
 

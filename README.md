@@ -227,6 +227,7 @@ A separate throwaway campaign id (`cmp_p2_locked`) produced the 0 → 1 case on 
 - `docs/DEPLOYMENT.md` — production configuration (persistent SQLite, server-side AI key, Devnet/MagicBlock settings)
 - `docs/P3_MAGICBLOCK_NATIVE_AI_PAYMENTS.md` — experimental token-funded deep investigation: MagicBlock capability report, payment verification, limits
 - `docs/P3_NATIVE_PAYMENT_FEASIBILITY.md` — native MagicBlock payment feasibility (x402 vs eSPL), measured costs, and the exact authorizations required before any Devnet write
+- `docs/P3_NATIVE_PAYMENT_RESULTS.md` — native eSPL implementation and the authorized Devnet run: every signature, the measured cost, and the rollup-deposit blocker that stopped the payment
 
 ## Getting started
 

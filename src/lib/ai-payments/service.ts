@@ -22,6 +22,9 @@ import type { QuestView } from "../quest-store";
 import { readAiPaymentsConfig, solanaPayUri, tokenAmount, type AiPaymentsConfig } from "./config";
 import { findPaymentForReference, type PaymentLookup } from "./rpc";
 import { verifyPayment } from "./verify";
+import { erConfig, fetchErFacts, mintState } from "./er/client";
+import { demoPayer, prepareNativePayment, type NativeDeps } from "./er/pay";
+import { verifyErTransfer, type ErFacts } from "./er/verify";
 import {
   beginCharge,
   claimPayment,
@@ -34,6 +37,7 @@ import {
   getIntent,
   listIntents,
   oweRefund,
+  recordNativeSubmission,
   sumCostToday,
   takeGrant,
   type AiIntent,
@@ -47,6 +51,29 @@ export interface AiPaymentReceipt {
   amountLabel: string;
   explorerUrl: string;
   paidAt: string;
+  /** "er" means the transfer executed on a MagicBlock Ephemeral Rollup. */
+  settlement: "er" | "base";
+  depositSignature: string | null;
+  validator: string | null;
+  /** ER confirmation is not L1 commitment; this stays false unless verified. */
+  l1Settled: false;
+  settlementNote: string;
+}
+
+const SETTLEMENT_NOTE_ER =
+  "Settled on the MagicBlock Ephemeral Rollup (ER confirmation). This is not L1 commitment: the rollup has not been independently shown to have committed this transfer to Solana's base layer.";
+const SETTLEMENT_NOTE_BASE =
+  "Settled by an ordinary Solana Pay transfer on the base layer. This is not an Ephemeral Rollup payment.";
+
+export interface NativePaymentState {
+  available: boolean;
+  reason: string | null;
+  validator: string | null;
+  erEndpoint: string | null;
+  demoPayer: string | null;
+  mintInitialized: boolean | null;
+  transferQueue: string | null;
+  label: string;
 }
 
 export interface AiAccessState {
@@ -65,6 +92,7 @@ export interface AiAccessState {
   model: string | null;
   remainingToday: number | null;
   refundCredits: number;
+  native: NativePaymentState;
   pending: Array<{
     id: string;
     question: string;
@@ -72,6 +100,7 @@ export interface AiAccessState {
     expiresAt: string;
     payUri: string | null;
     fundedByCredit: boolean;
+    settlement: "er" | "base";
   }>;
   recent: Array<{
     id: string;
@@ -215,6 +244,16 @@ export async function aiAccessState(view: QuestView): Promise<AiAccessState> {
       model,
       remainingToday: null,
       refundCredits: 0,
+      native: {
+        available: false,
+        reason: result.reason,
+        validator: null,
+        erEndpoint: null,
+        demoPayer: null,
+        mintInitialized: null,
+        transferQueue: null,
+        label: "MagicBlock Ephemeral Rollup payment",
+      },
       pending: [],
       recent: [],
       disclosure,
@@ -228,6 +267,31 @@ export async function aiAccessState(view: QuestView): Promise<AiAccessState> {
   );
   const usedToday = countChargesToday(view.sessionId);
   const aiConfigured = Boolean(process.env.ARG_AI_API_KEY && model);
+
+  // The native rollup path is only offered when this deployment holds the
+  // isolated demo wallet and the mint actually has a transfer queue. Neither is
+  // guessed: both are read from the hosted API (only when a wallet exists, so a
+  // deployment without one makes no extra network call).
+  const payer = demoPayer();
+  const settings = erConfig();
+  let initialized: boolean | null = null;
+  let queue: string | null = null;
+  if (payer) {
+    try {
+      const state = await mintState(config.mint);
+      initialized = state.initialized;
+      queue = state.transferQueue;
+    } catch {
+      initialized = null;
+    }
+  }
+  const nativeReason = !payer
+    ? "This deployment has no rollup demo wallet, so it can only offer the base-layer Solana Pay transfer."
+    : initialized === false
+      ? "The visit token has no MagicBlock transfer queue on this validator yet, so the rollup path is not available."
+      : initialized === null
+        ? "MagicBlock's payment API could not be reached, so the rollup path is unavailable right now."
+        : null;
 
   return {
     enabled: aiConfigured,
@@ -245,6 +309,16 @@ export async function aiAccessState(view: QuestView): Promise<AiAccessState> {
     model,
     remainingToday: Math.max(0, config.maxPerDayPerSession - usedToday),
     refundCredits: countUnusedGrants(view.sessionId),
+    native: {
+      available: Boolean(payer) && initialized === true && aiConfigured,
+      reason: nativeReason,
+      validator: payer ? settings.validator : null,
+      erEndpoint: payer ? settings.erRpc : null,
+      demoPayer: payer ? payer.publicKey.toBase58() : null,
+      mintInitialized: initialized,
+      transferQueue: queue,
+      label: "MagicBlock Ephemeral Rollup payment",
+    },
     pending: pendingIntents.map((intent) => ({
       id: intent.id,
       question: intent.question,
@@ -252,6 +326,7 @@ export async function aiAccessState(view: QuestView): Promise<AiAccessState> {
       expiresAt: intent.expiresAt,
       payUri: intent.fundedByGrant ? null : payUriFor(intent, config),
       fundedByCredit: Boolean(intent.fundedByGrant),
+      settlement: intent.settlement,
     })),
     recent: listIntents(view.sessionId, 5).map((intent) => ({
       id: intent.id,
@@ -266,14 +341,42 @@ export async function aiAccessState(view: QuestView): Promise<AiAccessState> {
 }
 
 export type QuoteOutcome =
-  | { ok: true; intentId: string; amountBaseUnits: number; priceLabel: string; payUri: string | null; expiresAt: string; fundedByCredit: boolean }
+  | {
+      ok: true;
+      intentId: string;
+      amountBaseUnits: number;
+      priceLabel: string;
+      payUri: string | null;
+      expiresAt: string;
+      fundedByCredit: boolean;
+      settlement: "er" | "base";
+    }
   | { ok: false; code: string; reason: string };
+
+function receiptForIntent(intent: AiIntent, config: AiPaymentsConfig): AiPaymentReceipt {
+  const er = intent.settlement === "er";
+  return {
+    intentId: intent.id,
+    signature: intent.signature ?? "credit",
+    payer: intent.payer ?? "refund-credit",
+    amountBaseUnits: intent.amountBaseUnits,
+    amountLabel: label(config, intent.amountBaseUnits),
+    explorerUrl: intent.signature ? explorerTx(intent.signature) : "",
+    paidAt: intent.paidAt ?? intent.createdAt,
+    settlement: er ? "er" : "base",
+    depositSignature: intent.depositSignature,
+    validator: intent.validator,
+    l1Settled: false,
+    settlementNote: er ? SETTLEMENT_NOTE_ER : SETTLEMENT_NOTE_BASE,
+  };
+}
 
 /** Issue one authorization bound to this exact question. */
 export async function quoteDeepInvestigation(
   view: QuestView,
   question: string,
   now: Date = new Date(),
+  options: { settlement?: "er" | "base" } = {},
 ): Promise<QuoteOutcome> {
   const result = readAiPaymentsConfig();
   if (!result.ok) return { ok: false, code: "disabled", reason: result.reason };
@@ -313,6 +416,9 @@ export async function quoteDeepInvestigation(
   const grant = takeGrant(view.sessionId, config.priceBaseUnits, now);
   const reference = Keypair.generate().publicKey.toBase58();
   const receiverAta = await associatedAddress(config.receiver, config.mint);
+  const settings = erConfig();
+  const settlement: "er" | "base" =
+    options.settlement ?? (demoPayer() && !grant ? "er" : "base");
 
   const intent = createIntent({
     sessionId: view.sessionId,
@@ -328,6 +434,9 @@ export async function quoteDeepInvestigation(
     now,
     status: grant ? "paid" : "quoted",
     fundedByGrant: grant?.id ?? null,
+    settlement,
+    validator: settlement === "er" ? settings.validator : null,
+    erEndpoint: settlement === "er" ? settings.erRpc : null,
   });
 
   return {
@@ -338,6 +447,7 @@ export async function quoteDeepInvestigation(
     payUri: grant ? null : payUriFor(intent, config),
     expiresAt: intent.expiresAt,
     fundedByCredit: Boolean(grant),
+    settlement: intent.settlement,
   };
 }
 
@@ -361,33 +471,10 @@ export async function settleQuote(
     return { ok: false, status: "not_found", code: "not_found", reason: "That quote does not belong to this session." };
   }
   if (intent.status === "paid" || intent.status === "consumed") {
-    if (!intent.signature) {
-      return {
-        ok: true,
-        status: "paid",
-        receipt: {
-          intentId: intent.id,
-          signature: "credit",
-          payer: "refund-credit",
-          amountBaseUnits: intent.amountBaseUnits,
-          amountLabel: label(config, intent.amountBaseUnits),
-          explorerUrl: "",
-          paidAt: intent.paidAt ?? intent.createdAt,
-        },
-      };
-    }
     return {
       ok: true,
-      status: "already_paid",
-      receipt: {
-        intentId: intent.id,
-        signature: intent.signature,
-        payer: intent.payer ?? "",
-        amountBaseUnits: intent.amountBaseUnits,
-        amountLabel: label(config, intent.amountBaseUnits),
-        explorerUrl: explorerTx(intent.signature),
-        paidAt: intent.paidAt ?? intent.createdAt,
-      },
+      status: intent.signature ? "already_paid" : "paid",
+      receipt: receiptForIntent(intent, config),
     };
   }
   if (intent.status === "expired" || Date.parse(intent.expiresAt) <= now.getTime()) {
@@ -429,19 +516,255 @@ export async function settleQuote(
     return { ok: false, status: "invalid", code: claimed.code, reason: claimed.reason };
   }
 
+  return { ok: true, status: "paid", receipt: receiptForIntent(claimed.intent, config) };
+}
+
+export type NativePrepareOutcome =
+  | {
+      ok: true;
+      intentId: string;
+      transferSignature: string;
+      depositSignature: string | null;
+      receiverSetupSignature: string | null;
+      confirmation: "er-confirmed";
+      settlementNote: string;
+      memo: string;
+      validator: string;
+      erEndpoint: string;
+      payer: string;
+      amountLabel: string;
+      payerBalanceBefore: number | null;
+      payerBalanceAfter: number | null;
+      receiverBalanceBefore: number | null;
+      receiverBalanceAfter: number | null;
+      feeLamports: number | null;
+    }
+  | { ok: false; code: string; reason: string };
+
+/**
+ * Execute the rollup payment for one quote. This performs the deposit (only when
+ * the payer has no delegated balance yet) and the ER transfer, then verifies the
+ * rollup transaction against the quote before recording its signature.
+ *
+ * It does not mark the quote paid: `settleNativeQuote` re-reads the transaction
+ * independently, so inference can never start from this call's word alone.
+ */
+export async function prepareNativeQuote(
+  view: QuestView,
+  intentId: string,
+  now: Date = new Date(),
+  deps: NativeDeps = {},
+): Promise<NativePrepareOutcome> {
+  void now;
+  const result = readAiPaymentsConfig();
+  if (!result.ok) return { ok: false, code: "disabled", reason: result.reason };
+  const config = result.config;
+
+  const intent = getIntent(intentId);
+  if (!intent || intent.sessionId !== view.sessionId) {
+    return { ok: false, code: "not_found", reason: "That quote does not belong to this session." };
+  }
+  if (intent.settlement !== "er") {
+    return {
+      ok: false,
+      code: "not_native",
+      reason: "That quote was issued for the base-layer Solana Pay fallback, not the rollup.",
+    };
+  }
+  if (intent.status === "paid" || intent.status === "consumed") {
+    return { ok: false, code: "already_paid", reason: "That quote is already paid." };
+  }
+  if (Date.parse(intent.expiresAt) <= Date.now()) {
+    return { ok: false, code: "expired", reason: "This quote expired. Ask for a new one; nothing was charged." };
+  }
+  if (intent.fundedByGrant) {
+    return { ok: false, code: "grant", reason: "That quote is already covered by a refund credit." };
+  }
+  // The payer is the wallet that claimed this trail's reward. A quote from a
+  // session whose payout went elsewhere may not be paid by the demo wallet.
+  const claimedWallet = view.completion?.payout.wallet ?? null;
+  const signer = (deps.payer === undefined ? demoPayer() : deps.payer)?.publicKey.toBase58() ?? null;
+  if (claimedWallet && signer && claimedWallet !== signer) {
+    return {
+      ok: false,
+      code: "payer_mismatch",
+      reason: "This trail's reward went to a different wallet than the one that can sign the rollup payment.",
+    };
+  }
+
+  const prepared = await prepareNativePayment(intent, config, deps);
+  if (!prepared.ok) return { ok: false, code: prepared.code, reason: prepared.reason };
+
+  const evidence = prepared.evidence;
+  const stored = recordNativeSubmission(intent.id, {
+    signature: evidence.transfer.signature,
+    depositSignature: evidence.deposit?.signature ?? null,
+    payer: evidence.payer,
+    validator: evidence.validator,
+    erEndpoint: evidence.erEndpoint,
+    payerBalanceBefore: evidence.payerBalanceBefore,
+    payerBalanceAfter: evidence.payerBalanceAfter,
+    receiverBalanceBefore: evidence.receiverBalanceBefore,
+    receiverBalanceAfter: evidence.receiverBalanceAfter,
+  });
+  if (!stored) {
+    return {
+      ok: false,
+      code: "conflict",
+      reason: "That quote changed while the payment was running. Open it again.",
+    };
+  }
+
   return {
     ok: true,
-    status: "paid",
-    receipt: {
-      intentId: intent.id,
-      signature: lookup.payment.signature,
-      payer: verified.payer,
-      amountBaseUnits: verified.amountBaseUnits,
-      amountLabel: label(config, intent.amountBaseUnits),
-      explorerUrl: explorerTx(lookup.payment.signature),
-      paidAt: claimed.intent.paidAt ?? now.toISOString(),
-    },
+    intentId: intent.id,
+    transferSignature: evidence.transfer.signature,
+    depositSignature: evidence.deposit?.signature ?? null,
+    receiverSetupSignature: evidence.receiverSetup?.signature ?? null,
+    confirmation: evidence.transfer.confirmation,
+    settlementNote: SETTLEMENT_NOTE_ER,
+    memo: evidence.memo,
+    validator: evidence.validator,
+    erEndpoint: evidence.erEndpoint,
+    payer: evidence.payer,
+    amountLabel: label(config, intent.amountBaseUnits),
+    payerBalanceBefore: evidence.payerBalanceBefore,
+    payerBalanceAfter: evidence.payerBalanceAfter,
+    receiverBalanceBefore: evidence.receiverBalanceBefore,
+    receiverBalanceAfter: evidence.receiverBalanceAfter,
+    feeLamports: evidence.transfer.feeLamports,
   };
+}
+
+/**
+ * Attach a rollup signature to a quote so it can be verified. This never marks
+ * anything paid: `settleNativeQuote` re-reads the transaction from the rollup and
+ * applies the quote's rules. A signature that does not match is simply refused.
+ */
+export async function attachNativeSubmission(
+  view: QuestView,
+  intentId: string,
+  signature: string,
+): Promise<{ ok: true } | { ok: false; code: string; reason: string }> {
+  const intent = getIntent(intentId);
+  if (!intent || intent.sessionId !== view.sessionId) {
+    return { ok: false, code: "not_found", reason: "That quote does not belong to this session." };
+  }
+  if (intent.settlement !== "er") {
+    return { ok: false, code: "not_native", reason: "That quote is for the base-layer fallback." };
+  }
+  if (intent.status !== "quoted") {
+    return { ok: false, code: "already_paid", reason: "That quote is already settled." };
+  }
+  if (!/^[1-9A-HJ-NP-Za-km-z]{60,100}$/.test(signature.trim())) {
+    return { ok: false, code: "bad_signature", reason: "That is not a transaction signature." };
+  }
+  const stored = recordNativeSubmission(intent.id, {
+    signature: signature.trim(),
+    depositSignature: null,
+    payer: intent.payer ?? demoPayer()?.publicKey.toBase58() ?? "",
+    validator: intent.validator ?? erConfig().validator,
+    erEndpoint: intent.erEndpoint ?? erConfig().erRpc,
+    payerBalanceBefore: null,
+    payerBalanceAfter: null,
+    receiverBalanceBefore: null,
+    receiverBalanceAfter: null,
+  });
+  if (!stored) {
+    return { ok: false, code: "conflict", reason: "That transaction is already attached to another quote." };
+  }
+  return { ok: true };
+}
+
+/**
+ * Verify a native quote's recorded rollup transaction and, only then, mark it
+ * paid. The signature comes from our database, never from the request body; the
+ * facts come from the rollup itself.
+ */
+export async function settleNativeQuote(
+  view: QuestView,
+  intentId: string,
+  now: Date = new Date(),
+  deps: { fetchErFacts?: (signature: string) => Promise<ErFacts | null> } = {},
+): Promise<SettleOutcome> {
+  const result = readAiPaymentsConfig();
+  if (!result.ok) return { ok: false, status: "invalid", code: "disabled", reason: result.reason };
+  const config = result.config;
+
+  const intent = getIntent(intentId);
+  if (!intent || intent.sessionId !== view.sessionId) {
+    return { ok: false, status: "not_found", code: "not_found", reason: "That quote does not belong to this session." };
+  }
+  if (intent.settlement !== "er") {
+    return {
+      ok: false,
+      status: "invalid",
+      code: "not_native",
+      reason: "That quote is for the base-layer fallback. Use the Solana Pay settlement instead.",
+    };
+  }
+  if (intent.status === "paid" || intent.status === "consumed") {
+    return {
+      ok: true,
+      status: intent.signature ? "already_paid" : "paid",
+      receipt: receiptForIntent(intent, config),
+    };
+  }
+  if (intent.status === "expired" || Date.parse(intent.expiresAt) <= now.getTime()) {
+    return {
+      ok: false,
+      status: "expired",
+      code: "expired",
+      reason: "This quote expired. Ask for a new one; nothing was charged.",
+    };
+  }
+  if (!intent.signature) {
+    return {
+      ok: false,
+      status: "pending",
+      code: "pending",
+      reason: "No rollup transfer has been submitted for this quote yet.",
+    };
+  }
+
+  const facts = await (deps.fetchErFacts ?? ((signature: string) => fetchErFacts(signature)))(
+    intent.signature,
+  );
+  if (!facts) {
+    return {
+      ok: false,
+      status: "pending",
+      code: "pending",
+      reason: "The rollup has not indexed that transfer yet. Check again in a moment.",
+    };
+  }
+
+  const verified = verifyErTransfer(facts, {
+    intentId: intent.id,
+    mint: intent.mint,
+    destination: intent.receiverAta,
+    amountBaseUnits: intent.amountBaseUnits,
+    payer: intent.payer ?? "",
+  });
+  if (!verified.ok) {
+    return { ok: false, status: "invalid", code: verified.code, reason: verified.reason };
+  }
+
+  const claimed = claimPayment(intent.id, facts.signature, verified.payer, now, {
+    depositSignature: intent.depositSignature,
+    validator: intent.validator,
+    erEndpoint: intent.erEndpoint,
+    payerBalanceBefore: intent.payerBalanceBefore,
+    payerBalanceAfter: intent.payerBalanceAfter,
+    receiverBalanceBefore: intent.receiverBalanceBefore,
+    receiverBalanceAfter: intent.receiverBalanceAfter,
+  });
+  if (!claimed.ok) {
+    if (claimed.code === "already_paid") return settleNativeQuote(view, intentId, now, deps);
+    return { ok: false, status: "invalid", code: claimed.code, reason: claimed.reason };
+  }
+
+  return { ok: true, status: "paid", receipt: receiptForIntent(claimed.intent, config) };
 }
 
 export interface DeepInvestigationResult {
@@ -459,15 +782,7 @@ export interface DeepInvestigationResult {
 
 function receiptFor(intent: AiIntent, config: AiPaymentsConfig): AiPaymentReceipt | null {
   if (!intent.signature) return null;
-  return {
-    intentId: intent.id,
-    signature: intent.signature,
-    payer: intent.payer ?? "",
-    amountBaseUnits: intent.amountBaseUnits,
-    amountLabel: label(config, intent.amountBaseUnits),
-    explorerUrl: explorerTx(intent.signature),
-    paidAt: intent.paidAt ?? intent.createdAt,
-  };
+  return receiptForIntent(intent, config);
 }
 
 /**
