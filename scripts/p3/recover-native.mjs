@@ -1,39 +1,55 @@
 #!/usr/bin/env node
 /**
- * Native eSPL recovery driver — read-only unless explicitly told otherwise.
+ * Native eSPL recovery check — read-only.
  *
- *   node scripts/p3/recover-native.mjs            # reconcile + show the merge plan
- *   node scripts/p3/recover-native.mjs --execute --approve
+ *   node scripts/p3/recover-native.mjs
  *
- * The only write it can make is one owner-signed `MergeShuttleIntoAta` (data [15])
- * on the rollup: zero fee, no new accounts, no deposit, no delegation change.
- * It refuses every other action, including any deposit.
+ * The authorised recovery was one owner-signed `MergeShuttleIntoAta` (data [15]) on
+ * the rollup. Simulation of that instruction fails against the current state under
+ * both legal account mappings, so this script never sends anything and says why.
+ *
+ *   1. reconcile base + rollup balances
+ *   2. assert account roles (metadata / shuttle eATA / shuttle wallet ATA / owner eATA)
+ *   3. simulate ix 15 with destination = owner eATA      -> InvalidAccountOwner
+ *   4. simulate ix 15 with destination = canonical ATA   -> InvalidWritableAccount
+ *   5. print the refusal, exit 1
+ *
+ * It refuses every write, including any deposit. `--execute` exists only so that a
+ * future, approved fix can be added deliberately; today it refuses too.
  */
 
 import fs from "node:fs";
-import path from "node:path";
-import { Keypair, PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import { mergeShuttleIntoAtaIx } from "@magicblock-labs/ephemeral-rollups-sdk";
 
 const BASE = process.env.ARG_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
 const ER = process.env.ARG_AI_ER_PAYMENTS_RPC ?? "https://devnet-as.magicblock.app";
 const VALIDATOR = "MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57";
-const PROGRAM = new PublicKey("SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2");
+const PROGRAM = "SPLxh1LVZzEkX99H6rqYizhytLWPZVV296zyYDPagv2";
+const DELEGATION_PROGRAM = "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh";
 const TOKEN = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const MINT = new PublicKey("61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1");
 
 const PLAYER_KEY = ".data/wallets/p3-demo-player.json";
+
+/**
+ * Roles were verified by decoding the accounts, not guessed:
+ *   56Vj9…  72 bytes, owner field = player, payer = rent PDA, u32@64 = 1458347789
+ *           → ShuttleMetadata PDA (ix 15 account 2)
+ *   64Qmio… 80 bytes, owner field = 56Vj9…, mint @32, amount 200000 @64
+ *           → the shuttle's ephemeral ATA (the staged credit)
+ *   EMefy…  165 bytes, Tokenkeg, amount 0
+ *           → the shuttle wallet ATA (ix 15 account 3, the merge source)
+ */
 const STATE = {
   player: "GnMyuvhxr1p3U6oQwcfiTVR3RSNbvfE4DfEWGnsLgR68",
   playerAta: "FZwX8oAkyVAVNnNbE88t3EdGJpmk4BHHaTH9TT2DJ2jj",
   playerEata: "DTW6qGnaz5pjAWcgLtchXke9LVPtcvXT7TAKnBo2uyKG",
-  playerShuttleEata: "56Vj9pZD7TTkrRBthinWJEnL3mW6rXxoCZ8fTbskKtLB",
-  playerShuttleAta: "64QmiopFjBkSZbV1QHXTqMprXf6fXtwhNnLGQYTRaVrA",
-  playerShuttleWalletAta: "EMefyTGaEVXMTLCvwCFZr8RRBxeyK4mwtXK6W3wwwpCK",
+  shuttleMetadata: "56Vj9pZD7TTkrRBthinWJEnL3mW6rXxoCZ8fTbskKtLB",
+  shuttleEata: "64QmiopFjBkSZbV1QHXTqMprXf6fXtwhNnLGQYTRaVrA",
+  shuttleWalletAta: "EMefyTGaEVXMTLCvwCFZr8RRBxeyK4mwtXK6W3wwwpCK",
   vaultAta: "5nZS2KkP1B5fXDv4jjWJ58Zy6xu1u5FSvUCnHjuvezgA",
 };
-
-const execute = process.argv.includes("--execute");
-const approved = process.argv.includes("--approve");
 
 async function rpc(endpoint, method, params) {
   const response = await fetch(endpoint, {
@@ -42,118 +58,101 @@ async function rpc(endpoint, method, params) {
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
   });
   const body = await response.json();
-  return body.result ?? body.error;
+  return body.result ?? { error: body.error };
 }
 
 function amountOf(info) {
   if (!info?.value) return null;
   const data = Buffer.from(info.value.data[0], "base64");
-  if (data.length >= 72) return Number(data.readBigUInt64LE(64)); // eATA: amount @64
   if (data.length === 165) return Number(data.readBigUInt64LE(64)); // SPL token account
+  if (data.length >= 72) return Number(data.readBigUInt64LE(64)); // eATA amount @64
   return null;
 }
 
 async function reconcile() {
   const rows = [
     ["global vault ATA", STATE.vaultAta],
-    ["player base ATA", STATE.playerAta],
+    ["player canonical ATA", STATE.playerAta],
     ["player owner eATA", STATE.playerEata],
-    ["player shuttle eATA", STATE.playerShuttleEata],
-    ["player shuttle ATA (state)", STATE.playerShuttleAta],
-    ["player shuttle wallet ATA", STATE.playerShuttleWalletAta],
+    ["shuttle metadata (PDA)", STATE.shuttleMetadata],
+    ["shuttle eATA", STATE.shuttleEata],
+    ["shuttle wallet ATA", STATE.shuttleWalletAta],
   ];
-  console.log("account                        address        base       rollup");
+  console.log("account                       address        base       rollup    rollup owner");
   for (const [label, address] of rows) {
     const base = await rpc(BASE, "getAccountInfo", [address, { encoding: "base64" }]);
     const er = await rpc(ER, "getAccountInfo", [address, { encoding: "base64" }]);
-    const fmt = (info) => (info?.value ? String(amountOf(info) ?? `len${Buffer.from(info.value.data[0], "base64").length}`) : "missing");
-    console.log(`${label.padEnd(30)} ${address.slice(0, 8)}…   ${fmt(base).padEnd(10)} ${fmt(er)}`);
+    const fmt = (info) => (info?.value ? String(amountOf(info) ?? "n/a") : "missing");
+    const owner = er?.value ? `${er.value.owner.slice(0, 8)}…` : "—";
+    console.log(`${label.padEnd(28)} ${address.slice(0, 8)}…   ${fmt(base).padEnd(10)} ${fmt(er).padEnd(9)} ${owner}`);
   }
-  const eata = amountOf(await rpc(ER, "getAccountInfo", [STATE.playerEata, { encoding: "base64" }]));
-  return { eata: eata ?? 0 };
 }
 
-function mergeInstruction(owner) {
-  return new TransactionInstruction({
-    programId: PROGRAM,
-    keys: [
-      { pubkey: owner, isSigner: true, isWritable: false },
-      { pubkey: new PublicKey(STATE.playerEata), isSigner: false, isWritable: true },
-      { pubkey: new PublicKey(STATE.playerShuttleEata), isSigner: false, isWritable: false },
-      { pubkey: new PublicKey(STATE.playerShuttleWalletAta), isSigner: false, isWritable: true },
-      { pubkey: MINT, isSigner: false, isWritable: false },
-      { pubkey: TOKEN, isSigner: false, isWritable: false },
-    ],
-    data: Buffer.from([15]), // MergeShuttleIntoAta
-  });
+async function simulate(label, keypair, blockhash, destination) {
+  const instruction = mergeShuttleIntoAtaIx(
+    keypair.publicKey,
+    new PublicKey(destination),
+    new PublicKey(STATE.shuttleMetadata),
+    new PublicKey(STATE.shuttleWalletAta),
+    MINT,
+    TOKEN,
+  );
+  const transaction = new Transaction({ feePayer: keypair.publicKey, recentBlockhash: blockhash }).add(instruction);
+  transaction.sign(keypair);
+  const simulation = await rpc(ER, "simulateTransaction", [
+    transaction.serialize().toString("base64"),
+    { encoding: "base64", sigVerify: false, replaceRecentBlockhash: false, commitment: "confirmed" },
+  ]);
+  const value = simulation?.value ?? simulation;
+  console.log(`\n[${label}] destination ${destination}`);
+  console.log(`  err           ${JSON.stringify(value?.err ?? simulation?.error)}`);
+  console.log(`  units         ${value?.unitsConsumed ?? "n/a"}`);
+  for (const line of value?.logs ?? []) console.log(`  | ${line.replace("Program log: ", "")}`);
+  return { label, destination, err: value?.err ?? simulation?.error ?? null, logs: value?.logs ?? [] };
 }
 
 async function main() {
   console.log(`validator ${VALIDATOR}\nrollup    ${ER}\nbase      ${BASE}\n`);
-  const before = await reconcile();
-  console.log(`\nowner eATA amount on the rollup: ${before.eata}`);
+  await reconcile();
 
-  if (before.eata > 0) {
-    console.log("the eATA is already funded on the rollup — no merge needed.");
-    return;
-  }
   if (!fs.existsSync(PLAYER_KEY)) {
-    console.log(`\nno demo wallet at ${PLAYER_KEY}; nothing else this script can do read-only.`);
+    console.log(`\nno demo wallet at ${PLAYER_KEY}; read-only run only.`);
     return;
   }
   const keypair = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(PLAYER_KEY, "utf8"))));
   if (keypair.publicKey.toBase58() !== STATE.player) {
-    console.log(`\n${PLAYER_KEY} is ${keypair.publicKey.toBase58()}, not the demo player; refusing.`);
-    return;
-  }
-
-  const blockhash = await rpc(ER, "getLatestBlockhash", [{ commitment: "confirmed" }]);
-  const transaction = new Transaction({
-    feePayer: keypair.publicKey,
-    recentBlockhash: blockhash.value.blockhash,
-  }).add(mergeInstruction(keypair.publicKey));
-  transaction.sign(keypair);
-  const raw = transaction.serialize();
-
-  console.log("\nplanned write — MergeShuttleIntoAta (data [15]) on the rollup");
-  console.log(`  fee payer   ${keypair.publicKey.toBase58()}`);
-  console.log(`  destination ${STATE.playerEata} (owner eATA)`);
-  console.log(`  shuttle     ${STATE.playerShuttleEata}`);
-  console.log(`  wallet ATA  ${STATE.playerShuttleWalletAta}`);
-  console.log("  fee         0 lamports, no new accounts, no deposit");
-
-  if (!execute) {
-    console.log("\ndry run: nothing sent. Re-run with --execute --approve after approval.");
-    return;
-  }
-  if (!approved) {
-    console.log("\nrefusing: --execute also requires --approve (this is an on-chain write).");
+    console.log(`\n${PLAYER_KEY} is not the demo player; refusing.`);
     process.exitCode = 1;
     return;
   }
 
-  const signature = await rpc(ER, "sendTransaction", [raw.toString("base64"), { encoding: "base64", skipPreflight: true }]);
-  console.log(`\nsent: ${signature}`);
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const status = await rpc(ER, "getSignatureStatuses", [[signature], { searchTransactionHistory: false }]);
-    const value = status?.value?.[0];
-    if (value?.err) {
-      console.log(`failed on the rollup: ${JSON.stringify(value.err)}`);
-      return;
-    }
-    if (value?.confirmationStatus) break;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  const after = await reconcile();
-  console.log(`\nowner eATA amount after: ${after.eata}`);
-  if (after.eata !== before.eata) {
-    fs.mkdirSync(path.dirname(".data/p3/recovery.json"), { recursive: true });
-    fs.writeFileSync(
-      ".data/p3/recovery.json",
-      JSON.stringify({ signature, before, after, at: new Date().toISOString() }, null, 2),
+  const blockhash = (await rpc(ER, "getLatestBlockhash", [{ commitment: "confirmed" }]))?.value?.blockhash;
+  const withEata = await simulate("destination = owner eATA", keypair, blockhash, STATE.playerEata);
+  const withAta = await simulate("destination = canonical ATA", keypair, blockhash, STATE.playerAta);
+
+  const attempts = [withEata, withAta];
+  fs.mkdirSync(".data/p3", { recursive: true });
+  fs.writeFileSync(
+    ".data/p3/recovery-attempt.json",
+    JSON.stringify({ at: new Date().toISOString(), validator: VALIDATOR, rollup: ER, simulations: attempts }, null, 2),
+  );
+
+  const succeeded = attempts.filter((attempt) => attempt.err === null);
+  if (succeeded.length === 0) {
+    console.log(
+      "\nrefusing to send: no legal mapping of MergeShuttleIntoAta simulates successfully.\n" +
+        "  The owner eATA cannot be a destination (it is not a token account), and the\n" +
+        "  merge source (shuttle wallet ATA) is empty and not delegated on the rollup, so\n" +
+        "  the balance cannot be credited from the ER. Nothing was sent.",
     );
-    console.log("recorded .data/p3/recovery.json");
+    console.log("recorded .data/p3/recovery-attempt.json");
+    process.exitCode = 1;
+    return;
   }
+
+  // Reachable only if MagicBlock changes the rollup state so a merge simulates.
+  console.log("\na merge now simulates; re-run with an approved follow-up before sending.");
+  process.exitCode = 1;
 }
 
 main().catch((error) => {

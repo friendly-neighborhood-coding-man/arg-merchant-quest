@@ -229,6 +229,7 @@ A separate throwaway campaign id (`cmp_p2_locked`) produced the 0 → 1 case on 
 - `docs/P3_NATIVE_PAYMENT_FEASIBILITY.md` — native MagicBlock payment feasibility (x402 vs eSPL), measured costs, and the exact authorizations required before any Devnet write
 - `docs/P3_NATIVE_PAYMENT_RESULTS.md` — native eSPL implementation and the authorized Devnet run: every signature, the measured cost, and the rollup-deposit blocker that stopped the payment
 - `docs/P3_NATIVE_PAYMENT_DIAGNOSIS.md` — root cause of the missing rollup balance, the account reconciliation of the 200,001 stranded base units, and the smallest SDK-native recovery
+- `docs/P3_NATIVE_PAYMENT_RECOVERY_ATTEMPT.md` — the authorised recovery attempt: verified account roles, both failed merge simulations, and the exact external blocker (`P3_EXTERNAL_INFRASTRUCTURE_BLOCKER_CONFIRMED`)
 - `docs/P3_MAGICBLOCK_SUPPORT_REPORT.md` — draft support report for the stuck shuttle credit and queue crank (not posted)
 
 ## Getting started

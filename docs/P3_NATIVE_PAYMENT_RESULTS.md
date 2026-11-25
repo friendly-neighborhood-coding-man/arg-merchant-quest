@@ -151,15 +151,23 @@ future approval covers the base-layer fee. The mint's transfer queue for
 
 ## 7. What a next attempt needs
 
-1. one owner-signed `MergeShuttleIntoAta` (data `[15]`) on the rollup — 0 SOL, no
-   new accounts (`scripts/p3/recover-native.mjs`), to apply the pending shuttle
-   credit to the owner eATA;
-2. then the rollup transfer, settlement and inference, all free of chain fees;
-3. MagicBlock support for the stuck queue crank if the merge is rejected —
-   `docs/P3_MAGICBLOCK_SUPPORT_REPORT.md`.
+1. ~~one owner-signed `MergeShuttleIntoAta` (data `[15]`) on the rollup~~ — attempted and
+   refused by simulation in the authorised recovery phase: the merge source (shuttle wallet
+   ATA `EMefy…`) is empty and not delegated, and an eATA cannot be a merge destination.
+   See `docs/P3_NATIVE_PAYMENT_RECOVERY_ATTEMPT.md`;
+2. MagicBlock-side settlement of the shuttle eATA `64Qmio…` (200000) or a refreshed queue
+   crank — `docs/P3_MAGICBLOCK_SUPPORT_REPORT.md` (draft, not posted);
+3. only after the owner eATA is credited: the rollup transfer, settlement and inference,
+   all free of chain fees.
 
 Status of this phase (superseded by the recovery phase):
 
 ```
 P3_NATIVE_PAYMENT_IMPLEMENTED_ROLLUP_DEPOSIT_BLOCKED
+```
+
+Recovery phase status (see `docs/P3_NATIVE_PAYMENT_RECOVERY_ATTEMPT.md`):
+
+```
+P3_EXTERNAL_INFRASTRUCTURE_BLOCKER_CONFIRMED
 ```

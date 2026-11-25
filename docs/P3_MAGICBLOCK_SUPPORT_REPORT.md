@@ -22,9 +22,9 @@ are included; everything below is public chain data or endpoint behaviour.
 | Owner A (player) | `GnMyuvhxr1p3U6oQwcfiTVR3RSNbvfE4DfEWGnsLgR68` |
 | Owner A base ATA | `FZwX8oAkyVAVNnNbE88t3EdGJpmk4BHHaTH9TT2DJ2jj` |
 | Owner A eATA | `DTW6qGnaz5pjAWcgLtchXke9LVPtcvXT7TAKnBo2uyKG` |
-| Owner A shuttle eATA (shuttleId 1458347789) | `56Vj9pZD7TTkrRBthinWJEnL3mW6rXxoCZ8fTbskKtLB` |
-| Owner A shuttle ATA state | `64QmiopFjBkSZbV1QHXTqMprXf6fXtwhNnLGQYTRaVrA` |
-| Owner A shuttle wallet ATA | `EMefyTGaEVXMTLCvwCFZr8RRBxeyK4mwtXK6W3wwwpCK` |
+| Owner A shuttle metadata PDA (shuttleId 1458347789) | `56Vj9pZD7TTkrRBthinWJEnL3mW6rXxoCZ8fTbskKtLB` |
+| Owner A shuttle eATA — holds the staged **200000** | `64QmiopFjBkSZbV1QHXTqMprXf6fXtwhNnLGQYTRaVrA` |
+| Owner A shuttle wallet ATA — **empty, never delegated** | `EMefyTGaEVXMTLCvwCFZr8RRBxeyK4mwtXK6W3wwwpCK` |
 | Owner B (merchant) | `DUonyYGVwJ3d1vMNfUWTCiFXHUJ6AgUyWGmPuSgpxr3N` |
 | Owner B eATA | `AiPd7ZJ1geBr8abUNEhAfjqgsDvoUPWgBLexPZVzkrsr` |
 | Owner B shuttle ATA state (shuttleId 1859757000) | `AQqgN4D2CYCNEE9ufAP6sRAtP94P9o2RapaddzAfnQLe` |
@@ -62,8 +62,8 @@ same shape, `shuttleId 719154766`, `amount 1`. `err = null`.
 | Account | Expected after deposit + delegation | Actual |
 | --- | --- | --- |
 | Owner A eATA amount | 200,001 | **0** |
-| Owner A shuttle ATA state | cleared after merge | **200000** (still pending) |
-| Owner A shuttle wallet ATA | 0 after merge | 0 |
+| Owner A shuttle eATA amount | cleared after merge | **200000** (still pending) |
+| Owner A shuttle wallet ATA | funded, then drained by the merge | 0, and never delegated |
 | Global vault token account | 200,002 | 200,002 |
 | Owner B eATA amount | 1 | **0** |
 
@@ -103,11 +103,23 @@ can land.
    expected to run automatically for `shuttleId 1458347789` / `1859757000` on `devnet-as`?
 2. Can the pending shuttle credits be replayed or the stale queue-crank signatures refreshed
    for `4af3xC7VfQ8xhc9DYZ2q9UT7ZqrRM6Do1wsJjf1Man91`?
-3. If we may run `MergeShuttleIntoAta` (discriminator 15) ourselves from the rollup with
-   accounts `[owner, DTW6q…, 56Vj9…, EMefyT…, mint, Tokenkeg…]` and `data [15]`, is that the
-   supported recovery for a stuck shuttle, or is it only valid as part of the original
-   post-delegation action?
-4. If none of the above can credit the delegated eATA, what is the supported way to release
+3. If we run `MergeShuttleIntoEphemeralAta` (discriminator 15) ourselves from the rollup, is
+   that the supported recovery for a stuck shuttle? We simulated it with the canonical
+   accounts `[owner, destinationToken, 56Vj9…, EMefy…, mint, Tokenkeg…]` and it fails:
+   - destination = owner eATA `DTW6q…` → `InvalidAccountOwner`
+     (`require!(destination_token_info.owned_by(token_program_info.address())) failed`,
+     `merge_shuttle_into_ephemeral_ata.rs:61`) — an eATA is not a token account;
+   - destination = canonical ATA `FZwX8…` → `InvalidWritableAccount`,
+     `Immutable account EMefy… has been modified` — the shuttle wallet ATA is read-only on
+     the rollup and holds 0.
+   `undelegateShuttleEphemeralAta` (`[14]`) fails likewise: on base
+   `UnsupportedProgramId`, on the rollup `ScheduleCommit ERR: account EMefy… is required to
+   be writable and delegated in order to be undelegated`.
+4. Is there a supported way to settle the **shuttle eATA** `64Qmio…` (amount 200000,
+   delegated, backed by the vault) into the owner's canonical ATA / owner eATA, given that
+   the corresponding shuttle wallet ATA `EMefy…` was never funded or delegated by
+   instruction 24?
+5. If none of the above can credit the delegated eATA, what is the supported way to release
    the 200,002 base units held in the global vault to their owners?
 
 ## Minimal reproduction
