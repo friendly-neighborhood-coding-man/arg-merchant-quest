@@ -85,6 +85,18 @@ export function treasuryKeypair(): Keypair {
   return Keypair.fromSecretKey(Uint8Array.from(secret));
 }
 
+/**
+ * The treasury's public address, when a treasury file exists. Reading the public
+ * key is harmless; the secret key is only used by the reward transfer itself.
+ */
+export function treasuryPubkey(): string | null {
+  try {
+    return treasuryKeypair().publicKey.toBase58();
+  } catch {
+    return null;
+  }
+}
+
 export function counterProgramId(): PublicKey | null {
   const fromEnv = process.env.ARG_COUNTER_PROGRAM_ID;
   if (fromEnv) return new PublicKey(fromEnv);

@@ -225,6 +225,7 @@ A separate throwaway campaign id (`cmp_p2_locked`) produced the 0 → 1 case on 
 - `docs/FINAL_DEMO.md` — rehearsed merchant and player demonstration walkthroughs
 - `docs/JUDGE_DEMO.md` — five-minute judge walkthrough
 - `docs/DEPLOYMENT.md` — production configuration (persistent SQLite, server-side AI key, Devnet/MagicBlock settings)
+- `docs/P3_MAGICBLOCK_NATIVE_AI_PAYMENTS.md` — experimental token-funded deep investigation: MagicBlock capability report, payment verification, limits
 
 ## Getting started
 

@@ -10,6 +10,17 @@ interface Message {
   createdAt?: string;
 }
 
+interface AiState {
+  enabled: boolean;
+  reason: string | null;
+  priceLabel: string | null;
+  balanceLabel: string | null;
+  wallet: string | null;
+  remainingToday: number | null;
+  refundCredits: number;
+  disclosure: string;
+}
+
 const STARTERS = [
   "What have we discovered?",
   "What is suspicious about the last clue?",
@@ -34,6 +45,11 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
   const [note, setNote] = useState<string | null>(null);
   const [mode, setMode] = useState<"live" | "scripted" | null>(null);
   const [model, setModel] = useState<string | null>(null);
+  const [ai, setAi] = useState<AiState | null>(null);
+  const [quote, setQuote] = useState<{ intentId: string; priceLabel: string; payUri: string | null } | null>(null);
+  const [deepBusy, setDeepBusy] = useState(false);
+  const [deepError, setDeepError] = useState<string | null>(null);
+  const [deepReceipt, setDeepReceipt] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const sendRef = useRef<(text: string) => Promise<void>>(async () => {});
 
@@ -78,8 +94,24 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
   }, [open, loaded, slug]);
 
   useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    fetch(`/api/quests/${slug}/ai`)
+      .then((response) => response.json())
+      .then((data) => {
+        if (!cancelled) setAi(data as AiState);
+      })
+      .catch(() => {
+        if (!cancelled) setAi(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, slug]);
+
+  useEffect(() => {
     if (listRef.current) listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages, busy]);
+  }, [messages, busy, deepReceipt]);
 
   async function send(text: string) {
     const message = text.trim();
@@ -121,6 +153,94 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
       setError("Network error — the companion did not answer. Try again in a moment.");
     }
     setBusy(false);
+  }
+
+  async function aiPost(payload: Record<string, unknown>) {
+    const response = await fetch(`/api/quests/${slug}/ai`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  }
+
+  async function refreshAi() {
+    try {
+      const response = await fetch(`/api/quests/${slug}/ai`);
+      setAi((await response.json()) as AiState);
+    } catch {
+      // The panel simply keeps the previous balance.
+    }
+  }
+
+  async function investigate(intentId: string) {
+    const data = await aiPost({ action: "investigate", intentId });
+    if (data.status !== "ok" || typeof data.reply !== "string") {
+      setDeepError(String(data.reason ?? "The investigation could not run."));
+      return;
+    }
+    const usage = (data.usage ?? {}) as { inputTokens?: number; outputTokens?: number };
+    const receipt = (data.receipt ?? {}) as { amountLabel?: string; signature?: string };
+    setMessages((current) => [
+      ...current,
+      { role: "assistant", content: data.reply as string, mode: "paid_ai" },
+    ]);
+    setDeepReceipt(
+      `Deep investigation · paid ${receipt.amountLabel ?? ""} · ${String(data.model ?? "")} · ` +
+        `${usage.inputTokens ?? "?"} in / ${usage.outputTokens ?? "?"} out · ~$${Number(
+          data.estimatedCostUsd ?? 0,
+        ).toFixed(4)} API cost · tx ${receipt.signature ?? "credit"}${data.balanceAfter ? ` · balance ${data.balanceAfter}` : ""}`,
+    );
+    setQuote(null);
+    void refreshAi();
+  }
+
+  async function quoteDeep() {
+    if (input.trim().length < 3) {
+      setDeepError("Write the question you want investigated first.");
+      return;
+    }
+    setDeepBusy(true);
+    setDeepError(null);
+    setDeepReceipt(null);
+    try {
+      const data = await aiPost({ action: "quote", question: input });
+      if (!data.ok) {
+        setDeepError(String(data.reason ?? "A quote could not be issued."));
+        return;
+      }
+      if (data.fundedByCredit) {
+        await investigate(String(data.intentId));
+        return;
+      }
+      setQuote({
+        intentId: String(data.intentId),
+        priceLabel: String(data.priceLabel ?? ""),
+        payUri: typeof data.payUri === "string" ? data.payUri : null,
+      });
+    } catch {
+      setDeepError("Could not reach the server to issue a quote.");
+    } finally {
+      setDeepBusy(false);
+    }
+  }
+
+  async function verifyDeep() {
+    if (!quote) return;
+    setDeepBusy(true);
+    setDeepError(null);
+    try {
+      const data = await aiPost({ action: "settle", intentId: quote.intentId });
+      if (!data.ok) {
+        setDeepError(String(data.reason ?? "The payment was not found yet."));
+        return;
+      }
+      await investigate(quote.intentId);
+    } catch {
+      setDeepError("Could not reach the server to verify the payment.");
+    } finally {
+      setDeepBusy(false);
+    }
   }
 
   sendRef.current = send;
@@ -208,6 +328,11 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
                   {message.role === "assistant" && message.mode === "scripted_fallback" ? (
                     <span className="mt-1 block text-[10px] text-amber/60">scripted fallback</span>
                   ) : null}
+                  {message.role === "assistant" && message.mode === "paid_ai" ? (
+                    <span className="mt-1 block text-[10px] text-mint/70">
+                      deep investigation · token-funded
+                    </span>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -242,6 +367,62 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
                   {starter}
                 </button>
               ))}
+            </div>
+          ) : null}
+
+          {ai ? (
+            <div className="border-t border-line/60 bg-mint/[0.04] px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10.5px] font-semibold tracking-wide text-mint/80 uppercase">
+                  Deep investigation
+                </p>
+                <span className="text-[10px] text-sage/50">{ai.priceLabel ?? "unavailable"}</span>
+              </div>
+              {ai.enabled ? (
+                <>
+                  <p className="mt-1 text-[10.5px] text-sage/60">
+                    Balance {ai.balanceLabel ?? (ai.wallet ? "unreadable" : "— claim your reward first")} ·{" "}
+                    {ai.remainingToday ?? 0} left today
+                    {ai.refundCredits > 0 ? ` · ${ai.refundCredits} refund credit` : ""}
+                  </p>
+                  {quote ? (
+                    <div className="mt-1.5 space-y-1">
+                      {quote.payUri ? (
+                        <a
+                          className="block truncate rounded border border-mint/30 px-2 py-1 text-[10px] text-mint/80"
+                          href={quote.payUri}
+                        >
+                          Open in wallet · {quote.priceLabel}
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void verifyDeep()}
+                        disabled={deepBusy}
+                        className="rounded border border-mint/35 px-2 py-1 text-[10.5px] text-mint/85 disabled:opacity-50"
+                      >
+                        {deepBusy ? "Checking Devnet…" : "I paid — verify"}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void quoteDeep()}
+                      disabled={deepBusy}
+                      className="mt-1.5 rounded border border-mint/35 px-2 py-1 text-[10.5px] text-mint/85 disabled:opacity-50"
+                    >
+                      {deepBusy ? "Quoting…" : `Quote deep investigation · ${ai.priceLabel}`}
+                    </button>
+                  )}
+                </>
+              ) : (
+                <p className="mt-1 text-[10.5px] text-sage/50">{ai.reason ?? "Unavailable."}</p>
+              )}
+              {deepReceipt ? (
+                <p className="mt-1 text-[10px] leading-snug break-words text-mint/70">{deepReceipt}</p>
+              ) : null}
+              {deepError ? <p className="mt-1 text-[10px] text-amber/80">{deepError}</p> : null}
+              <p className="mt-1 text-[9.5px] leading-snug text-sage/40">{ai.disclosure}</p>
             </div>
           ) : null}
 
