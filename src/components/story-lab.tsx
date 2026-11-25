@@ -184,6 +184,12 @@ export function StoryLab({ merchantName }: { merchantName: string }) {
           >
             {busy ? "Drafting concepts…" : "Draft three concepts"}
           </button>
+          {busy ? (
+            <p className="text-[11.5px] leading-relaxed text-amber/70">
+              Generating with live AI. A measured run took about 30 seconds; the concepts appear here
+              when it finishes.
+            </p>
+          ) : null}
           {error ? <p className="text-[12.5px] text-rust">{error}</p> : null}
         </div>
       ) : null}

@@ -1,6 +1,6 @@
 # Live demo runbook
 
-Status: P1 “Living ARG”, P1 R2 “Playable Experience & Demo Polish” and P2 “MagicBlock Adaptive Intelligence”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. P2 was proven with two live ER clue handoffs and a Chromium check of the locked and unlocked shared-investigation panel. The live LLM path now runs on the official Claude API (`claude-opus-5-5`) and was exercised for real on 2026-11-25: model access, a genuine completion, the live Story Lab, a merchant→player publish walk and the unlocked collective reply, with the exact provider bytes recorded (see the Live AI run below).
+Status: P1 “Living ARG”, P1 R2 “Playable Experience & Demo Polish” and P2 “MagicBlock Adaptive Intelligence”. The API/HTTP journey was already proven with a real Devnet payout and MagicBlock ER counter. R2 re-walked both product-clue campaigns in a real Chromium browser at 375/390/768/1280 px, including the seeded *The Ninth Cup* and a merchant-created *The Midnight Jar*. P2 was proven with two live ER clue handoffs and a Chromium check of the locked and unlocked shared-investigation panel. The live LLM path now runs on the official Claude API (`claude-opus-5-5`) and was exercised for real on 2026-11-25: model access, a genuine completion, the live Story Lab, a merchant→player publish walk and the unlocked collective reply, with the exact provider bytes recorded (see the Live AI run below). A final demonstration pass on 2026-11-25 added an isolated locked-versus-unlocked comparison on a real second milestone, re-derived every counter PDA with a read-only script, rendered the companion's Markdown safely, and re-verified the app in production mode against the default Anthropic endpoint. See *Final demonstration pass* below, and `docs/FINAL_DEMO.md` for the rehearsed merchant and player walkthroughs.
 
 ## Setup
 
@@ -265,14 +265,10 @@ to the labelled scripted/local path.
 **Collective locked versus unlocked.** The unlocked side is real: the Ninth Cup's
 clue milestone read `ER live 3 · Solana committed 3` from
 `https://devnet-as.magicblock.app/` with `authority: live`, and the live reply used
-the fragment. The locked side could **not** be captured in this environment: the
-only campaign with a collective fragment is The Ninth Cup, whose milestone is
-already at 3, and merchant-created campaigns have no fragment by design, so no
-fixture exists with a fragment below the threshold. Lowering the counter on chain
-would be a fake and was not done. The locked provider context is still covered
-deterministically: `tests/collective.test.ts` and the context snapshot show the
-fragment absent from the prompt while the gate is closed, and the scripted locked
-wording was captured in the P2 run above.
+the fragment. In this pass the locked side was captured live too, on an isolated
+fixture whose own milestone stood at 1: see *Isolated locked/unlocked fixture* in
+the final-pass section below. Nothing was reset or lowered to produce it, and the
+Ninth Cup's counters were not touched.
 
 **Spend and credit.** The recorded calls used 8 871 prompt + 4 002 completion
 tokens in total (2 152+558, 2 415+517, 336+2 832). The organization cost API
@@ -369,6 +365,125 @@ Fresh database, real Devnet base layer and real ER read. The seeded campaign's c
 
 Limitation of this check: clearing the browser context to simulate the second player also removed the preview proxy's owner cookie, so the unauthorized and unconfigured states were verified against the real server through the API and the server-rendered HTML rather than visually in Chromium. The two authorized states (live unlock and retained access) were inspected in Chromium.
 
+## Final demonstration pass (2026-11-25)
+
+Scope: demo preparation only. No product feature was added, no campaign content was
+changed, and no merge or deploy was performed.
+
+### Counter reconciliation: why earlier runs showed different PDA addresses
+
+`node scripts/chain/pda-reconcile.mjs` re-derives every counter from the campaign id
+stored in the database and reads its committed value. It only reads; it holds no
+key and writes nothing.
+
+| Item | Value |
+| --- | --- |
+| Program | `8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C` |
+| Cluster | Solana **Devnet**, base layer `https://api.devnet.solana.com`, ER `https://devnet-as.magicblock.app/` |
+| Completion seed | `["counter", sha256(campaignId)]` |
+| Clue-milestone seed | `["counter", sha256(campaignId + "#clue")]` |
+
+Current values:
+
+| Campaign id | Counter kind | PDA | Committed |
+| --- | --- | --- | --- |
+| `cmp_the_ninth_cup` | completions | `tKit7TX2wmCENAG3GmFX9HQrjwCYGsLJEDQDcL7ePvN` | 5 |
+| `cmp_the_ninth_cup#clue` | clue milestone | `UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt` | 3 |
+| `cmp_p2_locked` | completions | `DWg59mdeV5gfMPtfwqvN7Mhok2Q3R5hyehocAnGtpjRA` | 2 |
+| `cmp_p2_locked#clue` | clue milestone | `A1MWoo2ksY6yK1UxKpZ1stqXUqHUijzKL5QF5PadY1Xs` | 2 |
+
+Every other campaign id in the database (`cmp_2038baea-…`, `cmp_4ce54286-…`,
+`cmp_b095aa8f-…`, `cmp_b_side_07`, `cmp_the_blue_hour`, `cmp_the_eighth_cup`,
+`cmp_the_lantern_ledger`) has both PDAs `not created` on Devnet.
+
+The apparent discrepancy in earlier runs is now explained: the two addresses quoted
+for *The Ninth Cup* are **two different counters for the same campaign**, not a
+moving account. `tKit7TX2…` counts verified completions (5) and `UdYL9iLz…` counts
+clue handoffs (3). Both are derived deterministically from the campaign id and the
+seed suffix above, so re-running the script returns the same pair.
+
+### Isolated locked/unlocked fixture
+
+The comparison needs a campaign whose clue milestone is below the threshold and
+that also has a fragment. The Ninth Cup is at 3 and must not be reset, and
+merchant-created campaigns have no fragment by design. The existing real milestone
+`cmp_p2_locked#clue` already stood at 1 on Devnet from the earlier throwaway P2 run,
+so only its database row was recreated (same campaign id, so the same on-chain
+account applies) and published through the normal merchant → operator flow:
+
+| Item | Value |
+| --- | --- |
+| Campaign id / slug | `cmp_p2_locked` / `p2-locked-fixture` |
+| Title | P2 Locked Fixture (labelled demo-only, fictional, never offered to players) |
+| Fragment | `src/lib/collective-fixture.ts`, looked up only after production content |
+| Script | `node scripts/demo/locked-fixture.mjs [--unlock]` |
+
+One player session, one campaign, one question, two states — the reply is live
+`claude-opus-5-5` in both. Question: *“What does the shared investigation record
+say, and how should it change my theory that the answer is nine?”*
+
+| Stage | Gate state | Live reply (abridged) |
+| --- | --- | --- |
+| Locked | `phase first`, ER live 1, committed 1, `authority none`, `locked true`, `evidence null` | “The shared record is still locked. The campaign-wide count shows 1 eligible clue handoff out of 2 needed … I can't paraphrase it, and the count alone shouldn't move your theory either way … the weakest assumption is that every stamp you're counting actually carries the word SAMPLE.” |
+| Handoff | increment `3zi9KUW28TWhaV17jLGEmSqvyYU3F14c2fiy7zvt79faBHJ4iLFZaRQrySRqybvZCzvYJ72jphUeZLVbZ2CzkMfo`, commit `HPhhe3Vn6WeuTj1RvBP2J7oqnecr4sHPY1mobdrrkptasbyKeabXtXSPSRzRUKGyNrhWFjMJ4tmaf14b5NnXwDL`, `committedValue 2` | one player journey plus one staff handoff on the fixture only |
+| Unlocked | `phase unlocked`, ER live 2, committed 2, `authority live`, `locked false`, fragment present | “Correction: the shared record is now unlocked at 2 eligible handoffs … It's prewritten fixture text, not anything gathered from players … **Observed:** the card is stamped twice … **Guess:** nine.” |
+
+The unlocked reply separates observed from guessed, quotes the fixture fragment and
+labels it prewritten, and still refuses the answer. Nothing in the Ninth Cup changed:
+its counters read 5 and 3 before and after, and the reconciliation table above was
+taken after the run.
+
+### Companion text rendering and loading feedback
+
+- `src/lib/mara-format.ts` parses a deliberately small subset — paragraphs, bullet
+  lines, `**bold**`, `*italic*`, `` `code` `` — into tokens, and
+  `src/components/mara-text.tsx` renders them as React elements. There is no
+  `dangerouslySetInnerHTML`, so raw HTML in a model reply is displayed as inert
+  text rather than markup. `tests/mara-format.test.ts` covers five cases, including
+  HTML injection and an unclosed emphasis marker.
+- Verified in production with a live reply that contained `**Observed:**` and
+  `**Guessing:**`: the DOM held 2 `<strong>` elements and zero literal `**`, and an
+  earlier plain-prose reply rendered visually unchanged.
+- Loading: the drawer shows **“Mara is reading the trail…”** while a reply is in
+  flight and **“Loading the conversation…”** before stored history arrives. The
+  reply-in-flight line was observed on the production build; the history line was
+  verified in the component and the screenshots only, not caught in a fresh session. The Story Lab shows “Drafting concepts…” with the note that a
+  measured live run took about 30 seconds, so a slow generation does not look like
+  a hang.
+
+### Default Anthropic endpoint and production mode
+
+- `npm run build` completed, then `npm start` served production mode on `*:3000`
+  **without** `ARG_AI_BASE_URL` (`ARG_AI_MODEL=claude-opus-5-5`). The adapter's own
+  default (`https://api.anthropic.com/v1`) was therefore the endpoint in use.
+- A live completion still returned `mode=live model=claude-opus-5-5`, and the capture
+  proxy's log stayed at 15 lines — no request passed through the proxy, which proves
+  the default base was used rather than the loopback capture endpoint.
+- Production pages: `/`, `/quests`, `/merchant`, `/operator`, `/staff` all `200`;
+  `/quests/the-ninth-cup/play` `307` until a session exists, then renders the shared
+  panel with `ER live 3 · Solana committed 3 · devnet-as.magicblock.app`.
+- Screenshots from this pass are in the gitignored `artifacts/` directory:
+  `production-play-locked.png` (full play page), `production-companion-loading.png`
+  (“Mara is reading the trail…”) and `production-companion-markdown.png` (rendered
+  bold labels).
+
+### Limitations confirmed in this pass
+
+- The locked/unlocked comparison runs on a **demo fixture campaign**, deliberately
+  separate from production content. It is published so the gate can be exercised,
+  and it is marked fictional and never offered as a player trail.
+- Model phrasing varies between identical prompts. One earlier locked capture
+  described the closed gate as “the milestone couldn't be read” although the read had
+  succeeded and only the phase was locked; the API state and the prompt said “locked —
+  1 eligible clue handoff, 2 needed” in every run. Later captures used the correct
+  wording. The status text is generated by the model, not templated.
+- The cost report still returns HTTP 401 for this key (Admin API key required); the
+  promotional credit balance is visible only in Console → Billing.
+- Browser checks used Cloud Chromium (desktop and 390 px); no physical Android/iOS
+  device, real camera or screen reader was used.
+- Production mode here is `next start` on this machine, not a Cloudflare/Workers
+  deployment.
+
 ## Evidence to fill in
 
 - [x] Playable quest, staged clues, timed hints, camera/upload evidence, operator verification, extended mystery
@@ -380,5 +495,9 @@ Limitation of this check: clearing the browser context to simulate the second pl
 - [x] Known limitations / demo-only steps
 - [x] P2: ER state changes the companion's permitted context (live two-handoff run above)
 - [x] Live Claude provider path captured (model, status, elapsed ms, `live`)
+- [x] Locked → unlocked comparison on a real non-production milestone, one session, one campaign
+- [x] Counter PDA reconciliation documented (program, campaign id, cluster, seeds, committed values)
+- [x] Companion Markdown rendered safely; loading state observed live
+- [x] Production build verified against the default Anthropic endpoint
 
 **Do not mark done until genuinely observed.**

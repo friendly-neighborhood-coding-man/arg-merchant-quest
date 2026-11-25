@@ -1,3 +1,4 @@
+import { FIXTURE_COLLECTIVE_EVIDENCE } from "./collective-fixture";
 import { readGameplayMilestone } from "./chain/counter";
 import { getDb } from "./db";
 import type { QuestView } from "./quest-store";
@@ -122,7 +123,10 @@ function sentenceMarkers(text: string): string[] {
 const RESTRICTED_MARKERS: string[] = (() => {
   const markers = new Set<string>();
   for (const marker of LEGACY_FRAGMENT_MARKERS) markers.add(marker);
-  for (const fragment of Object.values(COLLECTIVE_EVIDENCE)) {
+  for (const fragment of [
+    ...Object.values(COLLECTIVE_EVIDENCE),
+    ...Object.values(FIXTURE_COLLECTIVE_EVIDENCE),
+  ]) {
     markers.add(fragment.title);
     for (const marker of sentenceMarkers(fragment.text)) markers.add(marker);
   }
@@ -144,7 +148,9 @@ export function sessionMayReadCollective(state: CollectiveState | null): boolean
 }
 
 export function evidenceFor(slug: string): CollectiveEvidence | null {
-  return COLLECTIVE_EVIDENCE[slug] ?? null;
+  // The fixture map is checked second so a production slug can never be
+  // shadowed by demo material.
+  return COLLECTIVE_EVIDENCE[slug] ?? FIXTURE_COLLECTIVE_EVIDENCE[slug] ?? null;
 }
 
 function validCount(value: unknown): number | null {

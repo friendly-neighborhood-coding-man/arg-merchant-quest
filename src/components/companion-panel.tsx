@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { MaraText } from "@/components/mara-text";
 
 interface Message {
   role: "user" | "assistant";
@@ -182,7 +183,10 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
           ) : null}
 
           <div ref={listRef} className="min-h-[140px] flex-1 space-y-3 overflow-y-auto px-4 py-3">
-            {messages.length === 0 && !busy ? (
+            {messages.length === 0 && !busy && !loaded && !error ? (
+              <p className="text-[12.5px] leading-relaxed text-sage/55">Loading the conversation…</p>
+            ) : null}
+            {messages.length === 0 && !busy && loaded ? (
               <p className="text-[12.5px] leading-relaxed text-sage/70">
                 I am Mara — another investigator, not the answer sheet. Ask me what we have found,
                 what looks wrong, or what to inspect next. I will not hand you the ending.
@@ -194,13 +198,13 @@ export function CompanionPanel({ slug, title }: { slug: string; title: string })
                 className={message.role === "user" ? "flex justify-end" : "flex justify-start"}
               >
                 <div
-                  className={`max-w-[86%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed break-words whitespace-pre-line ${
+                  className={`max-w-[86%] rounded-xl px-3 py-2 text-[12.5px] leading-relaxed break-words ${
                     message.role === "user"
                       ? "border border-amber/25 bg-amber/[0.08] text-sage/90"
                       : "border border-line/70 bg-ink-soft/70 text-sage/80"
                   }`}
                 >
-                  {message.content}
+                  <MaraText text={message.content} />
                   {message.role === "assistant" && message.mode === "scripted_fallback" ? (
                     <span className="mt-1 block text-[10px] text-amber/60">scripted fallback</span>
                   ) : null}
