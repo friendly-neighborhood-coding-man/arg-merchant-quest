@@ -226,6 +226,7 @@ A separate throwaway campaign id (`cmp_p2_locked`) produced the 0 → 1 case on 
 - `docs/JUDGE_DEMO.md` — five-minute judge walkthrough
 - `docs/DEPLOYMENT.md` — production configuration (persistent SQLite, server-side AI key, Devnet/MagicBlock settings)
 - `docs/P3_MAGICBLOCK_NATIVE_AI_PAYMENTS.md` — experimental token-funded deep investigation: MagicBlock capability report, payment verification, limits
+- `docs/P3_NATIVE_PAYMENT_FEASIBILITY.md` — native MagicBlock payment feasibility (x402 vs eSPL), measured costs, and the exact authorizations required before any Devnet write
 
 ## Getting started
 

@@ -47,9 +47,13 @@ GET /v1/spl/is-mint-initialized?mint=61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS
  "transferQueue":"4af3xC7VfQ8xhc9DYZ2q9UT7ZqrRM6Do1wsJjf1Man91","initialized":false}
 ```
 
-So the mint is known to MagicBlock's devnet registry but **not initialized**: an
-ER transfer or deposit of the visit token would be refused until that one write
-happens. The implemented flow does not depend on it.
+So the mint is known to MagicBlock's devnet registry but **not initialized**.
+Corrected on 2026-11-25: this is required for the **transfer queue** (queue-backed
+settlement and withdraw routes), while a `deposit` build *simulates successfully
+without it* (measured). The implemented flow does not depend on either step.
+
+Native x402 and the exact eSPL authorizations are analysed in
+`docs/P3_NATIVE_PAYMENT_FEASIBILITY.md`.
 
 ### Are rewarded tokens deposit-able / delegate-able / spendable?
 
