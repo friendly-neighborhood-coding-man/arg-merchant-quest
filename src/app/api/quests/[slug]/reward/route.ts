@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
 import { getCompletion, getSession } from "@/lib/quest-store";
 import { claimReward, rewardStateForCompletion } from "@/lib/reward-service";
-import { checkRateLimit, dailyPayoutCap, payoutsInLastDay } from "@/lib/limits";
+import {
+  checkRateLimit,
+  dailyPayoutCap,
+  payoutsInLastDay,
+  releasePayoutForCompletion,
+  releaseSpendingSlot,
+  reservePayoutForCompletion,
+  reserveSpendingSlot,
+} from "@/lib/limits";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -39,34 +47,52 @@ export async function POST(
       429,
     );
   }
+
+  // The cap is counted from stored rows, so the unit has to be reserved before
+  // the first await: otherwise a burst of claims all read the same count and
+  // each pays. The second lock covers one completion claimed twice at once.
   const cap = dailyPayoutCap();
-  const paidToday = payoutsInLastDay();
-  if (completion.payoutStatus !== "paid" && paidToday >= cap) {
+  const needsPayout = completion.payoutStatus !== "paid";
+  if (needsPayout && !reserveSpendingSlot("payout", cap, payoutsInLastDay())) {
     return jsonError(
       `This demo has paid its ${cap} Devnet rewards for the last 24 hours. The trail still works; the payout panel will open again after the budget is replenished.`,
       429,
     );
   }
+  if (needsPayout && !reservePayoutForCompletion(completion.id)) {
+    releaseSpendingSlot("payout");
+    return jsonError(
+      "A payout for this completion is already being submitted. Refresh in a moment.",
+      409,
+    );
+  }
 
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return jsonError("Send a JSON body with the wallet address.", 400);
-  }
-  const wallet = (body as { wallet?: unknown })?.wallet;
-  if (typeof wallet !== "string" || wallet.trim().length === 0) {
-    return jsonError("Paste the Devnet wallet address that should receive the reward.", 400);
-  }
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonError("Send a JSON body with the wallet address.", 400);
+    }
+    const wallet = (body as { wallet?: unknown })?.wallet;
+    if (typeof wallet !== "string" || wallet.trim().length === 0) {
+      return jsonError("Paste the Devnet wallet address that should receive the reward.", 400);
+    }
 
-  const result = await claimReward(completion, wallet);
-  if (!result.ok) return jsonError(result.error, result.status);
+    const result = await claimReward(completion, wallet);
+    if (!result.ok) return jsonError(result.error, result.status);
 
-  return NextResponse.json({
-    ok: true,
-    reward: await rewardStateForCompletion(result.completion),
-    completionId: result.completion.id,
-  });
+    return NextResponse.json({
+      ok: true,
+      reward: await rewardStateForCompletion(result.completion),
+      completionId: result.completion.id,
+    });
+  } finally {
+    if (needsPayout) {
+      releasePayoutForCompletion(completion.id);
+      releaseSpendingSlot("payout");
+    }
+  }
 }
 
 export async function GET(

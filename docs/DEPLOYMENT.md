@@ -5,7 +5,80 @@ Scope: one Next.js server, one persistent SQLite database, **Solana Devnet only*
 
 The release has been built and exercised in production mode locally on 2026-11-27 (see
 `docs/SUBMISSION.md` §10). It has **not** been deployed to a public URL: that needs a persistent disk
-and a paid host, which the owner must approve. Follow the go-live checklist at the end.
+and a hosted account, which the owner must approve. Railway is the prepared path (§ Railway below);
+follow the go-live checklist at the end.
+
+---
+
+## Railway: the fastest prepared path to a public URL
+
+Railway is the recommended host for the judging window, ahead of a hand-built VPS: it terminates
+TLS, provides a public `*.up.railway.app` name, and its volume rules match this app's constraints.
+
+| Requirement | Railway behaviour | Fit |
+| --- | --- | --- |
+| One persistent SQLite file | Volume mounted at `/data`; files persist across redeploys and restarts | yes |
+| Exactly one instance | A service with a volume **cannot** run replicas | enforced by the platform |
+| HTTPS | TLS terminated at the edge with a managed certificate | yes |
+| Credentials server-side | Service variables injected at runtime, never in the image | yes |
+| Storage size | 0.5 GB volume on Free/Trial, 5 GB on Hobby | the demo database is a few MB |
+
+Cost and entitlement: a new Railway account includes a **30-day trial with a one-time $5 credit and
+no card**, which covers the judging period. After that the Free plan gives $1/month but **sleeps an
+idle service**, and Hobby is $5/month with $5 of usage included. Nothing here has been provisioned
+or purchased: the deploy needs the owner's own Railway account (or a project token).
+
+Already in the repository:
+
+- `Dockerfile` pins Node 24 (the app uses `node:sqlite`, which needs 22.5+), installs from the
+  lockfile, builds, then runs one `next start` on `0.0.0.0:${PORT}` with `ARG_DATA_DIR=/data`.
+- `railway.json` forces the Dockerfile builder, runs `npm start`, healthchecks `/quests` (which
+  reads the database), and never enables replicas.
+- `.dockerignore` keeps `.data/`, `.env*`, `node_modules`, `.next` and repository extras out of the
+  image.
+
+### Railway setup, in order
+
+1. Create a project from `friendly-neighborhood-coding-man/arg-merchant-quest` on branch
+   `release/hackathon-p2`. The first deploy starts on an empty `/data` and seeds the four demo
+   campaigns.
+2. **Add a volume mounted at `/data`.** This *is* the database; without it SQLite is lost on every
+   redeploy. Do not add replicas: Railway refuses them on a service with a volume, which is the
+   single-instance guarantee this app needs.
+3. Set the service variables:
+
+   ```
+   APP_ENV=production
+   ARG_DATA_DIR=/data
+   ARG_ADMIN_PASSWORD=<fresh secret, generated on the deployment host; see step 6>
+   ARG_AI_API_KEY=<the existing Claude key>
+   ARG_AI_MODEL=claude-opus-5-5
+   ARG_SOLANA_RPC_URL=https://api.devnet.solana.com
+   ARG_MAGIC_ROUTER_URL=https://devnet-router.magicblock.app
+   ARG_COUNTER_PROGRAM_ID=8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C
+   ARG_REWARD_MINT=61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1
+   ARG_DAILY_PAYOUT_CAP=25
+   ARG_AI_DAILY_REPLY_CAP=300
+   NEXT_PUBLIC_SOLANA_CLUSTER=devnet
+   DEMO_ONLY=true
+   ```
+
+   Leave `ARG_AI_BASE_URL` unset (official Claude endpoint). Do not point `ARG_TREASURY_KEYPAIR` at
+   anything outside the volume.
+4. Settings → Networking → **Generate Domain**, then set `NEXT_PUBLIC_APP_URL=https://<domain>` and
+   redeploy so absolute links use the public origin.
+5. Restore the treasury onto the volume, not into the image: write the backed-up keypair to
+   `/data/wallets/treasury.json` (the default path under `ARG_DATA_DIR`, `chmod 600`) using
+   `railway ssh`. Without it the demo still runs — rewards stay unconfigured and the reward card
+   says so — but the payout evidence needs this file. Never commit it, never put it in a variable.
+6. Replace the passphrase that was used in local testing. Generate a new one on the machine you
+   control (`openssl rand -hex 24`), keep it out of the repository, set it as
+   `ARG_ADMIN_PASSWORD`, and send it to judges privately through the submission form.
+7. Run the post-deploy verification below. Then confirm `/merchant` is **401** without the
+   passphrase and **200** with it, over the public `https://` origin.
+
+Redeploys on a service with a volume stop the old container before the new one starts, so expect a
+few seconds of downtime per deploy. The SQLite files on the volume are untouched.
 
 ---
 
@@ -81,6 +154,14 @@ Implementation: `src/proxy.ts` (Basic auth and the coarse API limit) and `src/li
 route limits and the two database-derived caps). The counts come from `quest_completions` and
 `companion_messages`, so a restart does not reset the spending caps; the per-address windows live
 in process memory and do reset on restart.
+
+A stored count on its own does not hold under a burst, because each request reads the count and
+then awaits a model call or a Devnet transfer. `reserveSpendingSlot` claims the unit synchronously
+before that await, and `reservePayoutForCompletion` stops two simultaneous claims for the same
+completion from both signing a transfer. Verified on 2026-11-27: twelve simultaneous companion
+questions against a deliberately slow provider with a cap of three answer exactly three and refuse
+the other nine with 429. Both reservations are per process, which is the other reason the
+deployment is exactly one instance.
 
 Browser Basic auth caches the passphrase for the session. Send it to judges separately (the
 submission form's access field), never in the public repository or a screenshot. `curl -u` works

@@ -1,7 +1,8 @@
 # Hackathon submission — ARG Merchant Quest
 
 Status: **READY_FOR_HACKATHON_SUBMISSION**
-Release: `release/hackathon-p2`, from the verified P2 commit `a29f195` plus one security-hardening commit.
+Release: `release/hackathon-p2`, from the verified P2 commit `a29f195` plus the security-hardening and
+deployment-hardening commits.
 Network: **Solana Devnet only.** Valueless demo tokens. All shops, staff, coupons and photos are fictional.
 
 ---
@@ -9,9 +10,20 @@ Network: **Solana Devnet only.** Valueless demo tokens. All shops, staff, coupon
 ## 1 · Public demo
 
 The release is built and was exercised in production mode (`next build` + `next start`, `APP_ENV=production`)
-on 2026-11-27; see the verification log in §12. A **durable public URL is not live yet**: it needs a host
-with a persistent disk, which is an infrastructure decision the project owner must approve and pay for
-(see `docs/DEPLOYMENT.md` → *Go live checklist*).
+on 2026-11-27; see the verification log in §10. A **durable public URL is not live yet**: hosting needs a
+persistent disk and an account the owner controls (see `docs/DEPLOYMENT.md`).
+
+The prepared host is **Railway**, ahead of a hand-built VPS: a volume mounted at `/data` with
+`ARG_DATA_DIR=/data`, and a service with a volume cannot run replicas, which is exactly the single
+instance SQLite needs. TLS and a public `*.up.railway.app` name come with it. A new Railway account
+includes a 30-day trial with a one-time $5 credit and no card, which covers the judging window. Nothing
+has been provisioned or purchased: that needs the owner's account (or a project token), and the
+repository now carries `Dockerfile`, `railway.json` and `.dockerignore` so the deploy is a repository
+import plus a volume and the variables in `docs/DEPLOYMENT.md`.
+
+The Freebuff preview of this workspace is **not** a judging URL: the platform answers unauthenticated
+requests with `401 invalid_api_key` ("open it in a browser with a signed URL"), and the process stops
+when the chat's VM is archived, so it is neither public nor durable.
 
 What a deployment needs, in one line each:
 
@@ -33,7 +45,7 @@ What a deployment needs, in one line each:
 | Submission branch | `release/hackathon-p2` (P2 release + access/limits hardening) |
 | Base release commit | `a29f195` — *docs(release): prepare deployment config and judge walkthrough* |
 | P3 experimental branch | `feature/p3-native-payment-authorization` at `7968270` — preserved, **not merged** |
-| Tests | `npm test` → 65 passing on the submission branch (62 release tests + 3 new limiter tests) |
+| Tests | `npm test` → **68 passing** on the submission branch (62 release tests + 3 limiter tests + 3 concurrency tests) |
 | Build | `npm run build` → success (Next.js 16.4.6) |
 
 The P3 branch is intentionally outside the release. Nothing from P3 is required by the demo.
@@ -193,7 +205,9 @@ verification*, never as a completed feature.
   passphrase (`ARG_ADMIN_PASSWORD`). There are no roles, no per-merchant ownership and no audit log.
   In production without that variable the admin surfaces return 503 rather than opening.
 - **Guardrails are demo-grade.** Per-address limits live in process memory (reset on restart); the
-  payout and AI caps are counted from stored rows over 24 hours. They stop accidents and casual abuse,
+  payout and AI caps are counted from stored rows over 24 hours, and each unit is reserved
+  synchronously before the async work so a burst cannot all spend the same count. Both reservations are
+  per process, so they rely on the documented single instance. They stop accidents and casual abuse,
   not a determined attacker.
 - **Demo custody.** The treasury is one hot wallet on the server; no budget accounting, fraud
   detection or anti-replay beyond "one completion per session".
@@ -225,12 +239,12 @@ verification*, never as a completed feature.
 
 ## 10 · Verification log — 2026-11-27 (this release)
 
-Environment: this Cloud VM, Node 26, `npm ci` from the committed lockfile, production build.
+Environment: this Cloud VM, Node 24.22.1 (`node -v`), `npm ci` from the committed lockfile, production build.
 
 | Check | Result |
 | --- | --- |
 | `npm run typecheck` | pass (exit 0) |
-| `npm test` | **65/65 pass** (62 release tests + 3 new limiter tests) |
+| `npm test` | **68/68 pass** (62 release tests + 3 limiter tests + 3 concurrency tests) |
 | `npm run build` | pass; `ƒ Proxy (Middleware)` compiled |
 | `next start` on `0.0.0.0:3000`, `APP_ENV=production` | ready, listening |
 | Public pages `/`, `/quests`, `/quests/the-ninth-cup`, `/quests/the-ninth-cup/play` | 200 |
@@ -244,6 +258,12 @@ Environment: this Cloud VM, Node 26, `npm ci` from the committed lockfile, produ
 | MagicBlock ER read | `erLive 3`, `committed 3`, `devnet-as.magicblock.app` |
 | Chain state (read-only) | treasury `DUonyYGVwJ3d1vMNfUWTCiFXHUJ6AgUyWGmPuSgpxr3N`, 0.2320 SOL, mint `61xJEuc…` |
 | Mobile 390 px (Cloud Chromium) | quest detail and play page render without horizontal clipping; ER and shared-evidence panels read correctly |
+| 12 simultaneous companion questions, deliberately slow live provider, `ARG_AI_DAILY_REPLY_CAP=3` | **before the fix: 12 answered** (the cap was bypassed); **after: 3 answered, 9 refused with 429** |
+| Same-completion double claim | guarded by `reservePayoutForCompletion`; unit-tested (no second on-chain payout was made) |
+| Fresh random `ARG_ADMIN_PASSWORD` (48 hex chars) vs the passphrase used in earlier testing | 200 with the fresh value; **401** for the old `judge-pass-2026`; admin APIs still 401 without credentials |
+| Production start with `ARG_DATA_DIR=/data` and an empty directory | seeded on first request, `/quests` 200, SQLite and evidence paths created under the data dir |
+| Railway container config | `Dockerfile` (Node 24), `railway.json`, `.dockerignore` added; **the image was not built here — this VM has no Docker** |
+| Freebuff preview URL | `401 invalid_api_key` from the platform, i.e. not a public judge URL and not durable |
 
 Not performed in this pass, deliberately: a **new on-chain payout** (it spends Devnet tokens and needs
 the owner's approval — the prior signatures in §6 stand), a **deployment to a public host** (see §1), and

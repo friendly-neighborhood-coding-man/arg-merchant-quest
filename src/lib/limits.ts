@@ -13,6 +13,11 @@ import { getDb } from "./db";
  * 2. **Spending caps derived from the database.** The Devnet payout budget and
  *    the live-AI reply budget are counted from stored rows over the last 24
  *    hours, so they survive a restart and cannot be bypassed by a new cookie.
+ *    A stored count alone is not enough: the work between the check and the
+ *    write is asynchronous (a model call, a Devnet transfer), so a burst of
+ *    concurrent requests would all read the same count and each spend it. The
+ *    reservation helpers below claim the unit synchronously first, which is
+ *    what makes the caps hold under concurrency in this single process.
  *
  * Neither is a security boundary. The admin passphrase in `src/proxy.ts` is the
  * only access control, and every value here is a demo-protection default.
@@ -87,6 +92,65 @@ function pruneWindows(now: number) {
 /** Test hook: forget every in-process window. */
 export function resetRateLimits() {
   windows.clear();
+}
+
+/** The two daily budgets and the one-per-completion payout lock. */
+export type SpendingKind = "payout" | "ai_reply";
+
+const inFlight: Record<SpendingKind, number> = { payout: 0, ai_reply: 0 };
+const activePayouts = new Set<string>();
+
+/**
+ * Claim one unit of a daily budget before doing the metered work.
+ *
+ * `used` is read by the caller in the same synchronous step as this call, so
+ * no other request can interleave between reading the count and incrementing
+ * the in-flight reservation. The caller must pair a `true` with
+ * `releaseSpendingSlot` in a `finally`, and must release only after the row
+ * that `used` counts has been written; the stored row then covers the unit and
+ * the reservation can go.
+ *
+ * This holds for one process, which is the documented deployment (one server,
+ * one SQLite file). A second process would have its own counters.
+ */
+export function reserveSpendingSlot(kind: SpendingKind, cap: number, used: number): boolean {
+  if (cap <= 0) return false;
+  if (used + inFlight[kind] >= cap) return false;
+  inFlight[kind] += 1;
+  return true;
+}
+
+export function releaseSpendingSlot(kind: SpendingKind): void {
+  inFlight[kind] = Math.max(0, inFlight[kind] - 1);
+}
+
+/**
+ * One payout per completion, even for simultaneous claims.
+ *
+ * `beginPayout` marks the row `processing`, but two requests that already read
+ * the same `pending` snapshot both pass that check and both sign a transfer.
+ * The stored row is a single row, so the second transfer would spend treasury
+ * tokens without adding to the capped count.
+ */
+export function reservePayoutForCompletion(completionId: string): boolean {
+  if (activePayouts.has(completionId)) return false;
+  activePayouts.add(completionId);
+  return true;
+}
+
+export function releasePayoutForCompletion(completionId: string): void {
+  activePayouts.delete(completionId);
+}
+
+/** Test hook: forget every reservation and payout lock. */
+export function resetSpendingReservations() {
+  inFlight.payout = 0;
+  inFlight.ai_reply = 0;
+  activePayouts.clear();
+}
+
+export function inFlightReservations(kind: SpendingKind): number {
+  return inFlight[kind];
 }
 
 function positiveInt(raw: string | undefined, fallback: number): number {

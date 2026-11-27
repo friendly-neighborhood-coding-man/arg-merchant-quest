@@ -1,0 +1,19 @@
+# Never ship local state or secrets in the image.
+.data
+.tmp
+.env
+.env.*
+!.env.example
+
+# Rebuilt inside the image.
+node_modules
+.next
+tsconfig.tsbuildinfo
+
+# Repository extras that the running app does not need.
+.git
+.github
+artifacts
+programs
+docs
+*.md

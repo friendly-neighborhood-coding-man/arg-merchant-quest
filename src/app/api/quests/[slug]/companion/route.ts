@@ -13,7 +13,13 @@ import {
   sessionMayReadCollective,
 } from "@/lib/collective";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
-import { aiRepliesInLastDay, checkRateLimit, dailyAiReplyCap } from "@/lib/limits";
+import {
+  aiRepliesInLastDay,
+  checkRateLimit,
+  dailyAiReplyCap,
+  releaseSpendingSlot,
+  reserveSpendingSlot,
+} from "@/lib/limits";
 import { getQuestView, getSession } from "@/lib/quest-store";
 
 export const dynamic = "force-dynamic";
@@ -100,27 +106,34 @@ export async function POST(
       429,
     );
   }
+  // The answer is composed by an async provider call, so the reply is reserved
+  // before the first await. Without the reservation a simultaneous burst all
+  // passes the stored count and the whole budget is spent at once.
   const replyCap = dailyAiReplyCap();
-  if (aiRepliesInLastDay() >= replyCap) {
+  if (!reserveSpendingSlot("ai_reply", replyCap, aiRepliesInLastDay())) {
     return jsonError(
       `This demo has spent its ${replyCap} AI replies for the last 24 hours. The trail, the counter's hints and the reward are unaffected.`,
       429,
     );
   }
 
-  const playerView = getQuestView(playerId, campaign);
-  if (!playerView) return jsonError("Start the quest first.", 409);
-  const view = await attachCollectiveInvestigation(playerView, campaign);
+  try {
+    const playerView = getQuestView(playerId, campaign);
+    if (!playerView) return jsonError("Start the quest first.", 409);
+    const view = await attachCollectiveInvestigation(playerView, campaign);
 
-  const result = await answerCompanionMessage(session.id, view, raw);
+    const result = await answerCompanionMessage(session.id, view, raw);
 
-  return NextResponse.json({
-    reply: result.reply,
-    mode: result.mode,
-    model: result.model,
-    note: result.note,
-    collective: collectiveSummary(view.collective),
-  });
+    return NextResponse.json({
+      reply: result.reply,
+      mode: result.mode,
+      model: result.model,
+      note: result.note,
+      collective: collectiveSummary(view.collective),
+    });
+  } finally {
+    releaseSpendingSlot("ai_reply");
+  }
 }
 
 function sessionCount(sessionId: string): number {

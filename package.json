@@ -2,6 +2,9 @@
   "name": "arg-merchant-quest",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.5"
+  },
   "description": "Real-world ARG advertising platform for local merchants (Solana Devnet demo)",
   "scripts": {
     "dev": "next dev",
