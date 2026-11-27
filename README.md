@@ -6,6 +6,11 @@ A real-world ARG advertising experience powered by Solana and MagicBlock. Mercha
 
 **KR:** 매장과 온라인 단서를 연결한 위치 기반 ARG 광고 플랫폼. 실제 방문 탐색과 고정 보상, 선택형 스토리, 비밀 메뉴 쿠폰을 하나의 경험으로 연결합니다.
 
+> **Hackathon submission:** [docs/SUBMISSION.md](docs/SUBMISSION.md) — release branch, demo script,
+> verified Devnet/MagicBlock evidence, honest limitations, roadmap and the P3 status. Production
+> configuration: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Five-minute judge path:
+> [docs/JUDGE_DEMO.md](docs/JUDGE_DEMO.md).
+
 ## Hackathon objective
 
 **First make one complete journey work.** Focus on a playable E2E and demo quality, not a security framework, legal research, or broad infrastructure.
@@ -279,7 +284,7 @@ To see the 3/5-minute hints without waiting, start a quest and then shift that s
 
 ## Known limitations
 
-- No authentication: the player identity is an anonymous browser cookie, and the merchant/operator consoles act as seeded demo roles. Anyone with the URL can review evidence.
+- **One shared admin passphrase, no accounts.** The player identity is an anonymous browser cookie. On a public deployment `ARG_ADMIN_PASSWORD` gates `/merchant`, `/operator`, `/staff` and every state-changing API behind HTTP Basic auth; local development runs without it. There are no roles, no per-merchant ownership and no audit log, so it is demo access control, not a production identity system.
 - One session per campaign per browser; clearing cookies starts over.
 - No image recognition, no duplicate-completion or deep anti-fraud logic; the operator is the verification method.
 - Camera and location behaviour was verified in a desktop browser and in a headless/cloud browser without camera hardware. **Not tested on physical iOS/Android devices.**
