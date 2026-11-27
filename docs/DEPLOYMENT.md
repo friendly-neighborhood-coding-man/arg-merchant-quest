@@ -1,8 +1,11 @@
 # Production deployment configuration
 
-Release commit: `2635354` on `feature/p2-er-adaptive-intelligence`.
+Release: `release/hackathon-p2` (verified P2 `a29f195` plus the access/limits hardening commit).
 Scope: one Next.js server, one persistent SQLite database, **Solana Devnet only**.
-This document is configuration, not a deployment: nothing here has been executed.
+
+The release has been built and exercised in production mode locally on 2026-11-27 (see
+`docs/SUBMISSION.md` §10). It has **not** been deployed to a public URL: that needs a persistent disk
+and a paid host, which the owner must approve. Follow the go-live checklist at the end.
 
 ---
 
@@ -36,8 +39,11 @@ Required for the full demo:
 | `ARG_TREASURY_KEYPAIR` | secret path, e.g. `/run/secrets/treasury.json` | Restore from backup; **never regenerate** and never commit |
 | `NEXT_PUBLIC_SOLANA_CLUSTER` | `devnet` | Shown in the UI |
 | `NEXT_PUBLIC_APP_URL` | `https://<public-origin>` | Used for absolute links |
-| `APP_ENV` | `production` | |
+| `APP_ENV` | `production` | **Required.** With it set, a missing `ARG_ADMIN_PASSWORD` closes the admin surfaces instead of opening them |
 | `DEMO_ONLY` | `true` | Keep on: coupons and rewards stay demo entitlements |
+| `ARG_ADMIN_PASSWORD` | secret, 16+ chars | **Required for a public URL.** Gates the merchant/operator/staff consoles and every mutation |
+| `ARG_DAILY_PAYOUT_CAP` | `25` | 24-hour cap on confirmed Devnet payouts, counted from stored rows |
+| `ARG_AI_DAILY_REPLY_CAP` | `300` | 24-hour cap on stored companion replies (live or scripted) |
 
 Optional: `ARG_AI_VERSION`, `ARG_AI_WORKSPACE_ID` (only if the key is not workspace-scoped),
 `ARG_PREFER_CIRCLE_USDC`, `REWARD_KRW_EQUIVALENT`, `PORT`.
@@ -54,6 +60,34 @@ Do **not** set in production: `ARG_ANTHROPIC_ADMIN_KEY` (only the cost script us
   (`DUonyYGVwJ3d1vMNfUWTCiFXHUJ6AgUyWGmPuSgpxr3N`). If the file is missing, restore it — do not
   create a new treasury, because the documented payout evidence belongs to this one.
 - `.env` and `.data/` are gitignored; verify with `git check-ignore -v .env .data/arg.db`.
+
+## Access control and spending limits
+
+The prototype has no user accounts. One shared passphrase protects everything that can change
+state or spend money:
+
+| Surface | Guard |
+| --- | --- |
+| `/merchant`, `/merchant/**`, `/operator`, `/operator/**`, `/staff` | HTTP Basic auth (`ARG_ADMIN_PASSWORD`) |
+| `POST /api/campaigns`, `/api/campaigns/**` (except the public `GET` listing) | same |
+| `/api/evidence/**`, `/api/coupons/**`, `/api/product-claims/handoff`, `/api/merchant/**` | same |
+| Every other `/api/**` | 300 requests/minute per address, then 429 |
+| `POST` reward claim | 10 claims/hour per address **and** 25 confirmed payouts per rolling 24 h |
+| Companion replies | 30 questions/hour per address **and** 300 stored replies per rolling 24 h |
+| Evidence uploads | 20 uploads/hour per address |
+| Story Lab drafts | 10 drafts/hour per address |
+
+Implementation: `src/proxy.ts` (Basic auth and the coarse API limit) and `src/lib/limits.ts` (the
+route limits and the two database-derived caps). The counts come from `quest_completions` and
+`companion_messages`, so a restart does not reset the spending caps; the per-address windows live
+in process memory and do reset on restart.
+
+Browser Basic auth caches the passphrase for the session. Send it to judges separately (the
+submission form's access field), never in the public repository or a screenshot. `curl -u` works
+for scripted checks.
+
+These are demo guardrails, not a security boundary: there is one shared passphrase, no roles, no
+audit log and no per-merchant ownership. Do not present them as production access control.
 
 ## Persistent storage
 
@@ -111,6 +145,27 @@ is not supported.
 5. Confirm the treasury holds enough Devnet SOL and test tokens for one payout
    (`npm run chain:state` prints both, read-only).
 
+## Go-live checklist
+
+1. Provision **one** server with a persistent volume (1 vCPU / 2 GB is enough) and install Node 22+.
+   Nothing else in this document is optional: SQLite cannot live on an ephemeral container filesystem.
+2. Mount the volume and set `ARG_DATA_DIR` to it. Start from an **empty** data directory so the seeded
+   demo campaigns are created fresh — do not copy `.data/` from a development machine (it contains
+   local fixtures such as `p2-locked-fixture` that must not ship).
+3. Set the secrets in the platform's secret store: `ARG_ADMIN_PASSWORD` (16+ characters, random),
+   `ARG_AI_API_KEY`, and the **restored** treasury keypair file referenced by `ARG_TREASURY_KEYPAIR`.
+   Do not regenerate the treasury; the published payout evidence belongs to `DUonyYGV…`.
+4. Set the public configuration: `APP_ENV=production`, `NEXT_PUBLIC_APP_URL=https://<origin>`,
+   `ARG_AI_MODEL=claude-opus-5-5`, `ARG_SOLANA_RPC_URL`, `ARG_MAGIC_ROUTER_URL`,
+   `ARG_COUNTER_PROGRAM_ID=8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C`,
+   `ARG_REWARD_MINT=61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1`, `ARG_DAILY_PAYOUT_CAP`,
+   `ARG_AI_DAILY_REPLY_CAP`.
+5. `npm ci && npm run build`, then run `npm start` under a process manager bound to `0.0.0.0`.
+6. Put HTTPS in front. Confirm `/merchant` returns **401** without the passphrase, and **200** with it.
+   A 200 without credentials means `ARG_ADMIN_PASSWORD` is not set — stop and fix it.
+7. Run the post-deploy verification below. The Mara drawer must read **Live AI · claude-opus-5-5**.
+8. Send the passphrase to judges privately (submission form access field), never in the repository.
+
 ## Rollback
 
 Redeploy the previous release and restore the database backup taken before the deploy. When no
@@ -120,8 +175,11 @@ unaffected by rollbacks and must never be "fixed" by resetting a counter.
 ## Known deployment limits
 
 - One process, one SQLite file: no autoscaling, no multi-region, no background workers.
-- No accounts, roles or authenticated staff; `/staff` and `/operator` are open by design for the
-  demo and must not be presented as access-controlled.
+- One shared admin passphrase, no accounts or roles: anyone with the passphrase can use every
+  merchant and operator action. It must be set for a public URL (`ARG_ADMIN_PASSWORD`); a
+  production process without it refuses those routes with 503 rather than serving them open.
+- The rate limits and spending caps are single-process and deliberately simple. They protect the
+  demo from accidental loops and casual abuse, not from a determined attacker.
 - Evidence photos are stored on the local disk under the data directory; they are not encrypted
   or mirrored.
 - Coupons are fictional demo entitlements. Nothing in this deployment can redeem real value.

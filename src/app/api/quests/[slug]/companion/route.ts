@@ -13,6 +13,7 @@ import {
   sessionMayReadCollective,
 } from "@/lib/collective";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
+import { aiRepliesInLastDay, checkRateLimit, dailyAiReplyCap } from "@/lib/limits";
 import { getQuestView, getSession } from "@/lib/quest-store";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +57,7 @@ export async function POST(
   context: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await context.params;
+  // The route is public; nothing here touches chain state.
   const campaign = await loadCampaign(slug);
   if (!campaign || campaign.status !== "published") {
     return jsonError("This trail is not live.", 404);
@@ -84,6 +86,24 @@ export async function POST(
   if (total > 80) {
     return jsonError(
       "This demo trail has reached its companion message limit. The counter's timed hints still work.",
+      429,
+    );
+  }
+
+  // Live model calls are the deployment's only metered cost. Limit each address
+  // and the deployment as a whole; the scripted guide is capped the same way so
+  // the number the visitor sees is one honest reply budget.
+  const hourly = checkRateLimit(request, "companion", 30, 60 * 60 * 1000);
+  if (!hourly.ok) {
+    return jsonError(
+      `Mara has answered a lot from this address. Try again in ${Math.ceil(hourly.retryAfterSeconds / 60)} minutes; the counter's timed hints still work.`,
+      429,
+    );
+  }
+  const replyCap = dailyAiReplyCap();
+  if (aiRepliesInLastDay() >= replyCap) {
+    return jsonError(
+      `This demo has spent its ${replyCap} AI replies for the last 24 hours. The trail, the counter's hints and the reward are unaffected.`,
       429,
     );
   }

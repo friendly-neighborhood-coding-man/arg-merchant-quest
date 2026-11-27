@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { jsonError, loadCampaign, readPlayerId } from "@/lib/quest-http";
+import { checkRateLimit } from "@/lib/limits";
 import { MAX_PHOTO_BYTES, getSession, submitEvidence } from "@/lib/quest-store";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,15 @@ export async function POST(
   if (!playerId) return jsonError("Start the quest first.", 409);
   const session = getSession(playerId, campaign.id);
   if (!session) return jsonError("Start the quest first.", 409);
+
+  // Photos are written to the persistent volume; cap submissions per address.
+  const hourly = checkRateLimit(request, "evidence", 20, 60 * 60 * 1000);
+  if (!hourly.ok) {
+    return jsonError(
+      `Too many evidence uploads from this address. Try again in ${Math.ceil(hourly.retryAfterSeconds / 60)} minutes.`,
+      429,
+    );
+  }
 
   let form: FormData;
   try {
