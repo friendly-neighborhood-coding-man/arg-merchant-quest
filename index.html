@@ -56,7 +56,7 @@ footer{padding:36px 0 60px;color:var(--dim);font-size:13px}
   <h1>The city is the level.</h1>
   <p class="lead">ARG Merchant Quest turns an independent shop's own story into a short, real-world mystery. Players follow public clues, walk into the shop, photograph a merchant-approved object and — once a person verifies it — receive a <b>fixed</b> reward on Solana Devnet. Every verified completion is recorded on a <b>MagicBlock Ephemeral Rollup</b>, and a second on-chain counter decides what the AI companion, Mara, is allowed to discuss.</p>
   <div class="chips"><span>Solana Devnet only</span><span>Valueless demo token</span><span>Fictional shops</span><span>No races · fixed reward</span></div>
-  <div class="btns"><a class="primary" href="#demo">Watch the demo</a><a class="ghost" href="https://github.com/friendly-neighborhood-coding-man/arg-merchant-quest/tree/release/hackathon-p2">Source code · release/hackathon-p2</a></div>
+  <div class="btns"><a class="primary" href="https://youtu.be/_39K669W0zU">Watch the demo on YouTube</a><a class="ghost" href="https://github.com/friendly-neighborhood-coding-man/arg-merchant-quest/tree/release/hackathon-p2">Source code · release/hackathon-p2</a></div>
   <div class="notice"><b>Live hosted game: not publicly deployed yet.</b> The release builds and runs in production mode and as a Docker image with a persistent volume (verified 2026-11-27), but no durable public host is live. Everything on this page is real footage and real on-chain data from the release; you can run the app locally from the repository.</div>
 </section>
 
@@ -68,7 +68,7 @@ footer{padding:36px 0 60px;color:var(--dim);font-size:13px}
     <source src="assets/ARG-Merchant-Quest-demo.mp4" type="video/mp4">
     <track kind="captions" src="assets/captions.vtt" srclang="en" label="English">
   </video>
-  <p>Recorded from release <code>9c460e3</code> on 2026-11-27 with English captions. AI replies and the locked/unlocked comparison shown on cards are quoted from the recorded live Claude Opus 5.5 run; no new AI response, payment or chain transition was generated for the video.</p>
+  <p>Watch on YouTube: <a href="https://youtu.be/_39K669W0zU">youtu.be/_39K669W0zU</a>. Recorded from release <code>9c460e3</code> on 2026-11-27 with English captions. AI replies and the locked/unlocked comparison shown on cards are quoted from the recorded live Claude Opus 5.5 run; no new AI response, payment or chain transition was generated for the video.</p>
 </section>
 
 <section id="how">
@@ -162,7 +162,7 @@ Solana Devnet ── SPL transfer: fixed 1.00 tUSDC reward</pre>
 </div>
 <script>
 // Set this to the YouTube video id once the demo is uploaded; the self-hosted MP4 stays as the fallback.
-var YOUTUBE_ID = "";
+var YOUTUBE_ID = "_39K669W0zU";
 if (YOUTUBE_ID) {
   document.getElementById("yt-slot").innerHTML = '<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/' + YOUTUBE_ID + '" title="ARG Merchant Quest demo" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div><p><a href="#demo-video">Self-hosted copy below</a></p>';
 }
