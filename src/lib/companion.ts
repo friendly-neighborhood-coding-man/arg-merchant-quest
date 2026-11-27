@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { getDb } from "./db";
+import { milestoneState, type MilestoneState } from "./milestone";
 import type { QuestView } from "./quest-store";
 
 /**
@@ -52,7 +53,7 @@ export function listCompanionMessages(sessionId: string, limit = 40): CompanionM
   const rows = getDb()
     .prepare(
       `SELECT role, content, mode, created_at FROM companion_messages
-       WHERE session_id = ? ORDER BY created_at ASC LIMIT ?`,
+       WHERE session_id = ? ORDER BY created_at ASC, rowid ASC LIMIT ?`,
     )
     .all(sessionId, limit) as unknown as Array<{
     role: "user" | "assistant";
@@ -82,7 +83,7 @@ export function saveCompanionMessage(
     .run(`msg_${randomUUID()}`, sessionId, role, content.slice(0, MAX_REPLY_CHARS), mode, new Date().toISOString());
 }
 
-interface CompanionContext {
+export interface CompanionContext {
   campaignTitle: string;
   shopName: string;
   shopArea: string;
@@ -109,7 +110,7 @@ interface CompanionContext {
   finalSolved: boolean;
   hints: string[];
   milestone: {
-    status: string | null;
+    state: MilestoneState;
     committedValue: number | null;
     counterAccount: string | null;
   } | null;
@@ -149,7 +150,7 @@ function buildContext(view: QuestView, messages: CompanionMessage[]): CompanionC
     hints,
     milestone: view.optional.claim?.chain
       ? {
-          status: view.optional.claim.chain.status,
+          state: milestoneState(view.optional.claim.chain),
           committedValue: view.optional.claim.chain.committedValue,
           counterAccount: view.optional.claim.chain.counterAccount,
         }
@@ -185,7 +186,8 @@ function systemPrompt(context: CompanionContext, view: QuestView): string {
     "- If asked directly for the answer or the ending, refuse briefly and offer a process hint instead.",
     "- Do not reveal anything the player has not unlocked. If the product clue is locked, say it is inside the designated product and that staff release it after a demo handoff.",
     "- Challenge weak hypotheses with a question or a comparison; do not simply agree.",
-    "- If a real MagicBlock milestone is present with committedValue 1, you may use it: the clue handoff was recorded on the Ephemeral Rollup. Describe it as game state, not as proof of a real purchase.",
+    "- ER CLUE MILESTONE state 'committed' means this player's clue handoff was incremented on the MagicBlock Ephemeral Rollup and committed back to Solana. The committed value is the campaign-wide cumulative count of released clues, so any value of 1 or more is valid. Describe it as game state, not as proof of a real purchase.",
+    "- State 'unconfirmed' or 'unavailable' means the clue was released locally but its on-chain record is not confirmed; say so plainly. Never treat the counter's value alone as proof of this player's handoff.",
     "- The free reward is fixed and unaffected by the product, hints or this conversation.",
     "",
     `CAMPAIGN: ${context.campaignTitle} at ${context.shopName}, ${context.shopArea}.`,
@@ -197,12 +199,29 @@ function systemPrompt(context: CompanionContext, view: QuestView): string {
     `OPTIONAL MODE: ${context.optionalMode}. Product: ${context.productName || "none"}. Pre-order deduction solved: ${context.preOrderSolved}. Claim: ${context.claimStatus ?? "not requested"}${context.claimReference ? ` (reference ${context.claimReference})` : ""}.`,
     `PRODUCT CLUE RELEASED: ${context.clueReleased}${context.productClue ? `\nPRODUCT CLUE (released): ${context.productClue}` : ""}.`,
     `FINAL QUESTION: ${context.finalQuestion || "none"} (solved: ${context.finalSolved}).`,
-    `ER CLUE MILESTONE: ${context.milestone ? `${context.milestone.status}, committed value ${context.milestone.committedValue}` : "not recorded"}.`,
+    `ER CLUE MILESTONE: ${context.milestone ? `${context.milestone.state}${context.milestone.state === "committed" ? `, campaign-wide committed count ${context.milestone.committedValue}` : ""}` : "not recorded"}.`,
     `RELEASED HINTS:\n${hints}`,
     "",
     "REVEALED CLUES:",
     ...(clueText.length ? clueText : ["No clues have been revealed yet."]),
   ].join("\n");
+}
+
+/**
+ * The chat messages sent to the provider: system prompt, stored history, then
+ * the current player message exactly once. The history must not already
+ * contain the current message (see `answerCompanionMessage`).
+ */
+export function buildProviderMessages(
+  context: CompanionContext,
+  view: QuestView,
+  message: string,
+): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+  return [
+    { role: "system", content: systemPrompt(context, view) },
+    ...context.messages,
+    { role: "user", content: message },
+  ];
 }
 
 async function callProvider(
@@ -225,11 +244,7 @@ async function callProvider(
         model,
         temperature: 0.6,
         max_tokens: 240,
-        messages: [
-          { role: "system", content: systemPrompt(context, view) },
-          ...context.messages,
-          { role: "user", content: message },
-        ],
+        messages: buildProviderMessages(context, view, message),
       }),
       signal: controller.signal,
     });
@@ -252,6 +267,39 @@ async function callProvider(
   }
 }
 
+/** The public question the player is currently working on, if any. */
+function currentQuestion(view: QuestView): string | null {
+  if (!view.answer.solved) return view.answer.question || null;
+  if (view.optional.clue && !view.optional.final.solved) return view.optional.final.question || null;
+  if (view.extended.available && !view.extended.solved && view.extended.step > 0) {
+    return view.extended.question || null;
+  }
+  return null;
+}
+
+function productLabel(view: QuestView): string {
+  const name = view.optional.productName.trim();
+  return name ? `“${name}”` : "the signature product";
+}
+
+/**
+ * One sentence about this claim's clue milestone. It is based on the evidence
+ * stored for this player's handoff, never on the campaign-wide counter alone.
+ */
+export function milestoneSentence(view: QuestView): string {
+  const chain = view.optional.claim?.chain ?? null;
+  switch (milestoneState(chain)) {
+    case "committed":
+      return `The release of this clue is committed on the MagicBlock clue counter (${chain?.counterAccount}); the campaign-wide count of released clues is now ${chain?.committedValue}. That is game state, not proof of a purchase.`;
+    case "unconfirmed":
+      return "The clue was released locally. Its MagicBlock record was sent but is not confirmed on Solana, so treat the on-chain part as unconfirmed.";
+    case "unavailable":
+      return "The clue was released locally. The MagicBlock milestone was unavailable, so there is no on-chain record of this handoff.";
+    default:
+      return "";
+  }
+}
+
 /** Deterministic, story-aware fallback. It never reveals answers or locked clues. */
 export function scriptedReply(
   view: QuestView,
@@ -266,17 +314,19 @@ export function scriptedReply(
     asked(["final answer", "the answer", "tell me the answer", "solution", "solve it", "just tell"]) ||
     (asked(["answer"]) && asked(["what is", "give", "tell"]))
   ) {
+    const question = currentQuestion(view);
     return {
-      reply:
-        "I won't hand you the answer — that is the one thing this trail asks you to do. But I will tell you what kind of answer it wants: the counter's question asks you to count something the story names twice. Check the numbers you have already written down and tell me which of them you have not used yet.",
+      reply: `I won't hand you the answer — that is the one thing this trail asks you to do.${
+        question ? ` Read the question again: “${question}”` : ""
+      } Check the numbers and details you have already written down from the clues, and tell me which of them you have not used yet.`,
       mode: "scripted",
     };
   }
 
   if (view.optional.clue && asked(["unlock", "connect", "sleeve", "what changed", "what now", "product clue"])) {
-    const milestone = view.optional.claim?.chain?.committedValue === 1;
+    const milestone = milestoneSentence(view);
     return {
-      reply: `The sleeve changes the question. It says: “${view.optional.clue.text}” That is an instruction, not another number to find: the room already told us how many shelves there are, and the letter already gave us its total. Apply the sleeve's operation to those two numbers — and do not count the cups again.${milestone ? ` The handoff that released this clue is recorded on the MagicBlock counter (${view.optional.claim?.chain?.counterAccount}); that is why I can reason about it as released game state, though it is not proof of a purchase.` : ""}`,
+      reply: `The product clue changes the question. It says: “${view.optional.clue.text}” Treat it as an instruction, not another object to find: apply it to what the earlier clues already established, rather than counting again.${milestone ? ` ${milestone}` : ""}`,
       mode: "scripted",
     };
   }
@@ -293,11 +343,9 @@ export function scriptedReply(
     if (view.optional.claim) {
       parts.push(
         view.optional.claim.status === "handed_off"
-          ? `The product clue has been released under reference ${view.optional.claim.reference}${
-              view.optional.claim.chain?.committedValue === 1
-                ? ` and the handoff is committed on the MagicBlock counter (${view.optional.claim.chain.counterAccount})`
-                : ""
-            }.`
+          ? `The product clue has been released under reference ${view.optional.claim.reference}.${
+              milestoneSentence(view) ? ` ${milestoneSentence(view)}` : ""
+            }`
           : `The product is requested under reference ${view.optional.claim.reference}, but the clue is still inside it.`,
       );
     }
@@ -338,11 +386,11 @@ export function scriptedReply(
     } else if (view.optional.mode === "product_clue" && !view.extended.solved) {
       next = "Open the optional second question. It is a deduction from records you already have, not a purchase.";
     } else if (view.optional.mode === "product_clue" && !view.optional.claim) {
-      next = `Request the ${view.optional.productName} at the counter. The clue is in the product, so the order is part of the investigation.`;
+      next = `Request ${productLabel(view)} at the counter. The clue is in the product, so the demo order is part of the investigation.`;
     } else if (view.optional.claim?.status === "requested") {
       next = `Show reference ${view.optional.claim.reference} to staff and ask them to hand over the product clue.`;
     } else if (view.optional.clue && !view.optional.final.solved) {
-      next = "Read the sleeve again beside the shelf count and the letter's total. Add the numbers the way the sleeve tells you, not the way the cups are counted.";
+      next = `Read the product clue again beside what the earlier clues established, then answer: “${view.optional.final.question}”`;
     } else if (view.completion && !view.optional.final.solved) {
       next = "Finish the free reward first. The optional product trail is an extra story, not a condition for the reward.";
     } else {
@@ -368,8 +416,16 @@ export function scriptedReply(
 
   if (asked(["hint", "help", "stuck", "no idea", "confused", "lost"])) {
     if (view.optional.clue && !view.optional.final.solved && asked(["hint", "stuck", "no idea"])) {
+      // The campaign's final hint is shown to the player only after a wrong
+      // final attempt, so the companion follows the same gate.
+      if (view.optional.final.hint && view.optional.final.attempts > 0) {
+        return {
+          reply: `The counter's note for this step says: “${view.optional.final.hint}” Use that against the product clue.`,
+          mode: "scripted",
+        };
+      }
       return {
-        reply: `The sleeve is the last instruction. It tells you to pour twice for every shelf, then add the number the letter already gave you. The shelves are the ones you counted in the shop; the letter's number is the one you used to unlock this product. Do that one sum and answer with the total.`,
+        reply: `The product clue is the last instruction. Read it word by word and note what it asks you to do with things you already found earlier on this trail. Then try an answer to “${view.optional.final.question}” — a wrong attempt costs nothing and unlocks the counter's note.`,
         mode: "scripted",
       };
     }
@@ -396,24 +452,24 @@ export function scriptedReply(
     }
     if (view.optional.clue) {
       return {
-        reply: `You already have the product clue: “${view.optional.clue.text}” Compare it with the shelf count and the letter's total. The sleeve is telling you an operation, not another object to find.`,
+        reply: `You already have the product clue: “${view.optional.clue.text}” Compare it with what the earlier clues established. It is telling you what to do with those, not another object to find.`,
         mode: "scripted",
       };
     }
     if (view.optional.claim?.status === "handed_off") {
       return {
-        reply: `Staff have released the clue under reference ${view.optional.claim.reference}. Reload the trail to read the sleeve — it is printed, not spoken, so read every line including the small type.`,
+        reply: `Staff have released the clue under reference ${view.optional.claim.reference}. Reload the trail to read it, and read every line including the small type.`,
         mode: "scripted",
       };
     }
     if (view.optional.claim) {
       return {
-        reply: `Your reference is ${view.optional.claim.reference}. The clue stays inside the ${view.optional.productName} until staff confirm the demo handoff at the counter. Nothing is charged in this prototype.`,
+        reply: `Your reference is ${view.optional.claim.reference}. The clue stays inside ${productLabel(view)} until staff confirm the demo handoff at the counter. Nothing is charged in this prototype.`,
         mode: "scripted",
       };
     }
     return {
-      reply: `The ${view.optional.productName} is the last physical clue. Finish the pre-order deduction first, then request the product at the counter. The clue will not appear in the page before staff release it.`,
+      reply: `${productLabel(view)} holds the last physical clue. Finish the pre-order deduction first, then request the product at the counter. The clue will not appear in the page before staff release it.`,
       mode: "scripted",
     };
   }
@@ -423,7 +479,7 @@ export function scriptedReply(
       reply: view.optional.final.solved
         ? "We reached it. Reload the trail to reread the ending; it is yours now."
         : view.optional.clue
-          ? "The ending is unlocked only by the final answer, and the sleeve is the last clue. Re-read it against what the shop and the letter already told you."
+          ? "The ending is unlocked only by the final answer, and the product clue is the last one. Re-read it against what the earlier clues already told you."
           : "The ending is still locked behind the product clue. We cannot reason our way past a physical object we have not seen yet.",
       mode: "scripted",
     };
@@ -431,9 +487,9 @@ export function scriptedReply(
 
   if (asked(["magicblock", "blockchain", "chain", "on-chain", "er"])) {
     return {
-      reply: view.optional.claim?.chain?.committedValue === 1
-        ? `The clue handoff was recorded as game state on a MagicBlock Ephemeral Rollup (counter ${view.optional.claim.chain.counterAccount}). That changes what I can reason about — the release is real game state — but it is not proof of a purchase or a payment.`
-        : "The MagicBlock counter records the campaign completion and, later, the clue handoff. It does not contain our conversation or the answer. Until a milestone is recorded, treat that part as pending.",
+      reply:
+        milestoneSentence(view) ||
+        "The MagicBlock counter records the campaign completion and, later, the clue handoff. It does not contain our conversation or the answer. No clue handoff has been recorded for you yet.",
       mode: "scripted",
     };
   }
@@ -475,4 +531,21 @@ export async function generateCompanionReply(
       note: `Live AI was unavailable (${(error as Error).message}). The scripted guide answered instead.`,
     };
   }
+}
+
+/**
+ * Answer one player message and store both turns. The reply is generated from
+ * the history as it was *before* this message, so the provider receives the
+ * current message once; the user turn is stored first so history stays in order.
+ */
+export async function answerCompanionMessage(
+  sessionId: string,
+  view: QuestView,
+  message: string,
+): Promise<CompanionReply> {
+  const clean = message.trim().slice(0, MAX_MESSAGE_CHARS);
+  const result = await generateCompanionReply(view, clean);
+  saveCompanionMessage(sessionId, "user", clean, "user");
+  saveCompanionMessage(sessionId, "assistant", result.reply, result.mode);
+  return result;
 }

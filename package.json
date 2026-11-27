@@ -12,7 +12,8 @@
     "db:reset": "node scripts/reset-db.mjs",
     "chain:build": "cd programs/completion-counter && cargo build-sbf --sbf-out-dir ../../.data/chain",
     "chain:setup": "node scripts/chain/setup.mjs",
-    "chain:state": "node scripts/chain/state.mjs"
+    "chain:state": "node scripts/chain/state.mjs",
+    "test": "rm -rf .tmp/test-build && tsc -p tsconfig.test.json && node --test .tmp/test-build/tests/*.test.js"
   },
   "dependencies": {
     "@magicblock-labs/ephemeral-rollups-sdk": "^0.20.0",
