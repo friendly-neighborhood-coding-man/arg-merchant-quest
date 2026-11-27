@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARG Merchant Quest — Solana × MagicBlock real-world ARG</title>
+<meta name="description" content="A location-based ARG advertising platform for independent shops: human-verified visits, a fixed Solana Devnet reward, and a MagicBlock Ephemeral Rollup counter that gates what the AI companion may discuss.">
+<meta property="og:title" content="ARG Merchant Quest">
+<meta property="og:description" content="Real places, fair fixed rewards, verifiable state — Solana Devnet × MagicBlock Ephemeral Rollups.">
+<meta property="og:image" content="assets/er-panel.jpg">
+<style>
+:root{--ink:#0d1310;--panel:#121a16;--line:#2a3a30;--text:#e9efe9;--sage:#a9b9ad;--dim:#7d8f82;--amber:#e6b34d;--mint:#7fd3a6;--rust:#e39a76}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(1200px 700px at 15% -10%,#1d2a22 0%,var(--ink) 55%);color:var(--text);font:16px/1.6 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--amber)}a:hover{color:#f3cd7b}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+header.top{display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between;align-items:center;padding:18px 0;border-bottom:1px solid var(--line)}
+nav{display:flex;flex-wrap:wrap;gap:4px 16px}
+.brand{font-family:Georgia,"DejaVu Serif",serif;font-size:20px}.brand b{color:var(--amber);font-weight:400}
+nav a{font-size:14px;color:var(--sage);text-decoration:none}nav a:hover{color:var(--amber)}
+.k{font:12px/1.4 ui-monospace,"DejaVu Sans Mono",monospace;letter-spacing:.2em;text-transform:uppercase;color:var(--amber)}
+h1{font-family:Georgia,"DejaVu Serif",serif;font-weight:400;font-size:clamp(38px,6vw,62px);line-height:1.05;margin:.3em 0 .25em}
+h2{font-family:Georgia,"DejaVu Serif",serif;font-weight:400;font-size:clamp(26px,3.6vw,36px);margin:0 0 .4em}
+h3{font-size:17px;margin:.2em 0 .3em}
+p{color:var(--sage)}section{padding:56px 0;border-bottom:1px solid var(--line)}
+.lead{font-size:19px;max-width:760px}
+.chips span{display:inline-block;border:1px solid var(--amber);color:var(--amber);border-radius:999px;padding:3px 12px;margin:4px 6px 0 0;font:12px ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+.btns a{display:inline-block;margin:18px 10px 0 0;padding:11px 20px;border-radius:999px;text-decoration:none;font-weight:600}
+.primary{background:var(--amber);color:#1a1405}.ghost{border:1px solid var(--line);color:var(--text)}
+.notice{border:1px solid #6b4a2f;background:#1c1510;border-radius:16px;padding:16px 20px;margin-top:26px;color:#e8cdb8}
+.notice b{color:var(--rust)}
+.grid{display:grid;gap:18px}.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px}
+figure{margin:0;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+figure img{display:block;width:100%;height:auto}figcaption{padding:10px 14px;font-size:13.5px;color:var(--sage)}
+.phones{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+video{width:100%;border-radius:16px;border:1px solid var(--line);background:#000}
+.yt{position:relative;padding-top:56.25%;border-radius:16px;overflow:hidden;border:1px solid var(--line)}.yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+pre{background:#0a0f0c;border:1px solid var(--line);border-radius:14px;padding:16px;overflow:auto;font:12.5px/1.5 ui-monospace,"DejaVu Sans Mono",monospace;color:#cfe0d4}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:500;font:12px ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase}
+code{font:13px ui-monospace,"DejaVu Sans Mono",monospace;color:#d6e6da;word-break:break-all}
+.ok{color:var(--mint)}.warn{color:var(--rust)}
+footer{padding:36px 0 60px;color:var(--dim);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="brand">ARG <b>Merchant</b> Quest</div>
+  <nav><a href="#demo">Demo</a><a href="#how">How it works</a><a href="#magicblock">MagicBlock</a><a href="#evidence">Evidence</a><a href="#limits">Limitations</a><a href="https://github.com/friendly-neighborhood-coding-man/arg-merchant-quest/tree/release/hackathon-p2">Source</a></nav>
+</header>
+
+<section>
+  <div class="k">Solana × MagicBlock · real-world ARG</div>
+  <h1>The city is the level.</h1>
+  <p class="lead">ARG Merchant Quest turns an independent shop's own story into a short, real-world mystery. Players follow public clues, walk into the shop, photograph a merchant-approved object and — once a person verifies it — receive a <b>fixed</b> reward on Solana Devnet. Every verified completion is recorded on a <b>MagicBlock Ephemeral Rollup</b>, and a second on-chain counter decides what the AI companion, Mara, is allowed to discuss.</p>
+  <div class="chips"><span>Solana Devnet only</span><span>Valueless demo token</span><span>Fictional shops</span><span>No races · fixed reward</span></div>
+  <div class="btns"><a class="primary" href="#demo">Watch the demo</a><a class="ghost" href="https://github.com/friendly-neighborhood-coding-man/arg-merchant-quest/tree/release/hackathon-p2">Source code · release/hackathon-p2</a></div>
+  <div class="notice"><b>Live hosted game: not publicly deployed yet.</b> The release builds and runs in production mode and as a Docker image with a persistent volume (verified 2026-11-27), but no durable public host is live. Everything on this page is real footage and real on-chain data from the release; you can run the app locally from the repository.</div>
+</section>
+
+<section id="demo">
+  <div class="k">Demo · 2 min 48 s</div>
+  <h2>Real application footage</h2>
+  <div id="yt-slot"></div>
+  <video id="demo-video" controls preload="metadata" poster="assets/er-panel.jpg">
+    <source src="assets/ARG-Merchant-Quest-demo.mp4" type="video/mp4">
+    <track kind="captions" src="assets/captions.vtt" srclang="en" label="English">
+  </video>
+  <p>Recorded from release <code>9c460e3</code> on 2026-11-27 with English captions. AI replies and the locked/unlocked comparison shown on cards are quoted from the recorded live Claude Opus 5.5 run; no new AI response, payment or chain transition was generated for the video.</p>
+</section>
+
+<section id="how">
+  <div class="k">How it works</div>
+  <h2>One trail, five hands</h2>
+  <div class="grid g3">
+    <div class="card"><h3>1 · Merchant writes</h3><p>Shop facts become a trail: public posts, an in-store observation, a counter question and one object to photograph. The AI Story Lab drafts concepts; nothing publishes without approval.</p></div>
+    <div class="card"><h3>2 · Operator approves</h3><p>A person checks playability, a customer-safe spot and honest reward and coupon terms before the trail goes live.</p></div>
+    <div class="card"><h3>3 · Player explores</h3><p>Clues open one at a time, the in-store half unlocks at the counter, answers are checked on the server, and a person reviews the photo.</p></div>
+    <div class="card"><h3>4 · Fixed reward</h3><p>A verified completion pays the same 1.00 tUSDC (valueless Devnet token) to everyone and increments the campaign counter on a MagicBlock ER.</p></div>
+    <div class="card"><h3>5 · Deeper mystery</h3><p>An optional clue hides in a signature product that staff release by hand (a labelled simulation, no payment). Each handoff increments a second on-chain counter.</p></div>
+  </div>
+  <div class="grid g2" style="margin-top:22px">
+    <figure><img src="assets/home.jpg" alt="Home page" loading="lazy"><figcaption>Discovery: the reward is fixed; no first-solver bonus.</figcaption></figure>
+    <figure><img src="assets/storylab.jpg" alt="Story Lab draft concepts" loading="lazy"><figcaption>Merchant Story Lab, labelled as the local draft assistant when no AI key is configured.</figcaption></figure>
+  </div>
+  <div class="grid phones" style="margin-top:18px">
+    <figure><img src="assets/mobile-briefing.jpg" alt="Mobile briefing" loading="lazy"><figcaption>Briefing on a 390 px phone.</figcaption></figure>
+    <figure><img src="assets/mobile-clues.jpg" alt="Mobile clues" loading="lazy"><figcaption>Clues open one at a time.</figcaption></figure>
+    <figure><img src="assets/mobile-mara.jpg" alt="Mara companion" loading="lazy"><figcaption>Mara refuses to give the answer (scripted guide shown, labelled).</figcaption></figure>
+  </div>
+</section>
+
+<section id="magicblock">
+  <div class="k">MagicBlock integration</div>
+  <h2>On-chain state that governs the AI</h2>
+  <div class="grid g2">
+    <div>
+<pre>Player / Merchant / Operator / Staff
+        │
+        ▼
+Next.js 16 (one Node process) ── SQLite (WAL, persistent volume)
+   │            │
+   │            └─ Mara / Story Lab ── Claude Opus 5.5 (server-side key)
+   │                      ▲
+   │                      │ shared record unlocked only if ER count ≥ 2
+   ▼                      │
+completion-counter program 8q2dWZ81…hPh3C (native Rust)
+  PDA ["counter", sha256(campaign)]        → verified completions
+  PDA ["counter", sha256(campaign#clue)]   → product-clue handoffs
+        │ delegate            ▲ commit (validator write-back)
+        ▼                     │
+MagicBlock Ephemeral Rollup ──┘   increment on the ER
+        │
+Solana Devnet ── SPL transfer: fixed 1.00 tUSDC reward</pre>
+    </div>
+    <div>
+      <p><b>Two counters, one program.</b> Each campaign owns two PDAs of the same deployed program. Both are delegated to a MagicBlock ER validator, incremented on the rollup and committed back to Devnet by the validator.</p>
+      <p><b>The rollup gates the AI.</b> On every page and companion request the server reads the clue milestone live from the ER (2.5 s timeout). At two or more eligible handoffs a prewritten shared story record unlocks for Mara; below that, or if the ER can't be read, it stays locked and is never sent to the model.</p>
+      <p><b>Honest scope.</b> The counter records that this app verified a completion or a handoff. It does not prove physical presence, and the shared record is story text, not other players' data.</p>
+    </div>
+  </div>
+  <div class="grid g2" style="margin-top:22px">
+    <figure><img src="assets/er-panel.jpg" alt="Shared investigation panel" loading="lazy"><figcaption>Live ER read in the app: <code>ER live 3 · Solana committed 3 · devnet-as.magicblock.app</code>, shared record unlocked.</figcaption></figure>
+    <figure><img src="assets/er-verify.jpg" alt="ER transaction verification" loading="lazy"><figcaption>The app verifies an ER transaction directly on the rollup (fixture counter 1 → 2).</figcaption></figure>
+  </div>
+</section>
+
+<section id="evidence">
+  <div class="k">Verified Devnet evidence · re-read 2026-11-27</div>
+  <h2>Check it yourself</h2>
+  <table>
+    <tr><th>What</th><th>Value</th></tr>
+    <tr><td>Program (completion-counter)</td><td><a href="https://explorer.solana.com/address/8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C?cluster=devnet"><code>8q2dWZ81rkxShwUJThe48zuSL3ZURwhDwSzFcqqhPh3C</code></a></td></tr>
+    <tr><td>Reward mint (tUSDC demo token, not Circle USDC)</td><td><a href="https://explorer.solana.com/address/61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1?cluster=devnet"><code>61xJEucfUnrnf5aUotkmCGuUE41X28WiEn9K6M2YueS1</code></a></td></tr>
+    <tr><td>Reward payout · 1.00 tUSDC</td><td><a href="https://explorer.solana.com/tx/H72C1YWT35Ci8cVavdjmKpWYaB2C9sPBp9HNJ5sxTN7negdoCwxWHGBKXXKA77SQ8RWrE67grbMCQhZ39tx8cpM?cluster=devnet"><code>H72C1YWT…8cpM</code></a> · <a href="https://explorer.solana.com/tx/3KEpDqXCkn3VD5EsyNyZy73PLExDf3YmrEdVr1ccsSTpja8vB17XpZbACuUMT48zFy61SrX4vPXLUACzEBcX58fG?cluster=devnet"><code>3KEpDqXC…58fG</code></a></td></tr>
+    <tr><td>Completion counter (Ninth Cup) · committed <span class="ok">5</span></td><td><a href="https://explorer.solana.com/address/tKit7TX2wmCENAG3GmFX9HQrjwCYGsLJEDQDcL7ePvN?cluster=devnet"><code>tKit7TX2wmCENAG3GmFX9HQrjwCYGsLJEDQDcL7ePvN</code></a></td></tr>
+    <tr><td>Clue milestone (Ninth Cup) · committed <span class="ok">3</span></td><td><a href="https://explorer.solana.com/address/UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt?cluster=devnet"><code>UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt</code></a></td></tr>
+    <tr><td>Clue milestone write-backs 1 → 2 → 3</td><td><a href="https://explorer.solana.com/tx/2qQZCex4GHcg1okarNvvb2LNAQgAUtjn229uLwi8zcjK1ty2z7t5pu69GTYYRcCqTJb2WY5fD4eUbtGcWRaUroK8?cluster=devnet"><code>2qQZCex4</code></a> · <a href="https://explorer.solana.com/tx/2niFTnQHifwBc222LEmxmYXbtM7YKL1yTm7othK2bbWYHJQK9eGMWeumb7H1uHvJEU2CDXGxDqXkm1164CZhzT4C?cluster=devnet"><code>2niFTnQH</code></a> · <a href="https://explorer.solana.com/tx/4g1dWqG1AsELda7rceyVoaDMP1DQ4kyymaLR84ZQhqXsZ2K3K4AjBDbxyxt3XvwMnP3tkDLPa4RPRqjGdEF71f2P?cluster=devnet"><code>4g1dWqG1</code></a></td></tr>
+    <tr><td>Locked-fixture milestone · committed <span class="ok">2</span></td><td><a href="https://explorer.solana.com/address/A1MWoo2ksY6yK1UxKpZ1stqXUqHUijzKL5QF5PadY1Xs?cluster=devnet"><code>A1MWoo2ksY6yK1UxKpZ1stqXUqHUijzKL5QF5PadY1Xs</code></a> · write-backs <a href="https://explorer.solana.com/tx/4inndXftqNikGqNT2FVwufiCbJvgmYxmPpS7ue66a97jouzF6apcVsKVMdnhdnycyppmFNJDPCjgQMc4iYiE2hCC?cluster=devnet"><code>4inndXft</code></a> (→1) · <a href="https://explorer.solana.com/tx/4GoyFGorabYp5S3kCaVfYYkUH9zGr1xoPD3zZAx5mQTEKJZAbnDPjm1F6fvmhz1RK7SLGznw6JjM6Ba4vuHGxzuo?cluster=devnet"><code>4GoyFGor</code></a> (→2)</td></tr>
+    <tr><td>ER transaction (fixture increment, “counter is now 2”)</td><td><code>3zi9KUW28TWhaV17jLGEmSqvyYU3F14c2fiy7zvt79faBHJ4iLFZaRQrySRqybvZCzvYJ72jphUeZLVbZ2CzkMfo</code> — on <code>https://devnet.magicblock.app</code> (ER history is pruned over time; Devnet write-backs are the durable record)</td></tr>
+  </table>
+  <p style="margin-top:14px">All counter accounts are owned by the MagicBlock delegation program and delegated to validator <code>MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57</code>. Read-only reproduction from the repository: <code>npm run chain:state</code>.</p>
+</section>
+
+<section id="limits">
+  <div class="k">Honest limitations</div>
+  <h2>What this is — and isn't</h2>
+  <div class="grid g2">
+    <div class="card"><h3 class="warn">P3 native payments · experimental</h3><p>Paying for AI inference with MagicBlock-native eSPL tokens is implemented on a separate branch but <b>blocked at deposit settlement verification</b>: a real 0.20 tUSDC rollup deposit reached the shuttle account but was not credited, and both recovery instructions fail. It is not merged, not deployed and not claimed as working.</p></div>
+    <div class="card"><h3>Prototype scope</h3><p>Devnet and valueless tokens only. One process and one SQLite file. A shared admin passphrase, no user accounts. Demo-grade rate limits and caps. One hot demo treasury.</p></div>
+    <div class="card"><h3>Simulations are labelled</h3><p>Products, orders, staff handoffs and coupons are demo simulations with no payment or POS. Photos and location are reviewed by a person and are not proof of presence.</p></div>
+    <div class="card"><h3>Not yet tested</h3><p>A durable public deployment, physical iOS/Android camera use, and live Claude on a public host. Live Claude Opus 5.5 was verified in the project's own production-mode runs.</p></div>
+  </div>
+</section>
+
+<footer>
+  <p><a href="https://github.com/friendly-neighborhood-coding-man/arg-merchant-quest">github.com/friendly-neighborhood-coding-man/arg-merchant-quest</a> · release <code>release/hackathon-p2</code> @ <code>9c460e3</code> · Solana Devnet · MagicBlock Ephemeral Rollups</p>
+  <p>All shops, staff and coupons are fictional. No real money is used.</p>
+</footer>
+</div>
+<script>
+// Set this to the YouTube video id once the demo is uploaded; the self-hosted MP4 stays as the fallback.
+var YOUTUBE_ID = "";
+if (YOUTUBE_ID) {
+  document.getElementById("yt-slot").innerHTML = '<div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/' + YOUTUBE_ID + '" title="ARG Merchant Quest demo" allow="accelerometer; encrypted-media; picture-in-picture" allowfullscreen></iframe></div><p><a href="#demo-video">Self-hosted copy below</a></p>';
+}
+</script>
+</body>
+</html>
