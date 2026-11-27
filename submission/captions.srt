@@ -1,0 +1,90 @@
+1
+00:00:00,300 --> 00:00:05,800
+ARG Merchant Quest — a real-world ARG for independent shops,
+built on Solana Devnet and MagicBlock Ephemeral Rollups.
+
+2
+00:00:06,200 --> 00:00:13,500
+Players discover merchant-approved trails.
+The reward is fixed: no races, no speed bonus.
+
+3
+00:00:13,700 --> 00:00:21,800
+Everything simulated — coupons, products, staff handoffs —
+is labelled as a demo in the app.
+
+4
+00:00:22,200 --> 00:00:33,000
+Merchant studio (password-protected). The Story Lab drafts
+three campaign concepts from the shop's own facts.
+
+5
+00:00:33,200 --> 00:00:44,500
+No AI key in this recording, so the Lab labels itself 'Local draft
+assistant'. Our recorded live run used Claude Opus 5.5.
+
+6
+00:00:44,700 --> 00:00:55,800
+'Use this concept' fills an editable draft.
+Nothing is published until an operator approves it.
+
+7
+00:00:56,200 --> 00:01:05,500
+Player on a phone: The Ninth Cup.
+The objective and the story come first.
+
+8
+00:01:05,700 --> 00:01:15,500
+Public clues open one at a time;
+the in-store clues unlock at the counter.
+
+9
+00:01:15,700 --> 00:01:25,800
+The counter answer is checked on the server.
+Next, a person reviews the player's photo.
+
+10
+00:01:26,200 --> 00:01:33,500
+Mara, the investigation companion,
+sees only what this player has unlocked.
+
+11
+00:01:33,700 --> 00:01:40,800
+Without an AI key she runs as the labelled scripted guide —
+and still refuses to give the answer.
+
+12
+00:01:41,200 --> 00:01:48,800
+In production Mara runs on Claude Opus 5.5.
+These figures come from the recorded live run.
+
+13
+00:01:49,200 --> 00:01:59,000
+The server reads the campaign's clue milestone live from the
+MagicBlock Ephemeral Rollup: ER live 3 · Solana committed 3.
+
+14
+00:01:59,200 --> 00:02:08,500
+At 2+ eligible handoffs a prewritten shared story record unlocks
+for Mara — labelled as story text, not player data.
+
+15
+00:02:08,700 --> 00:02:18,800
+The app verifies an ER transaction directly on the rollup:
+the fixture's clue counter moving from 1 to 2.
+
+16
+00:02:19,200 --> 00:02:28,800
+Recorded live Claude replies before and after that transition:
+locked at 1 handoff, unlocked at 2.
+
+17
+00:02:29,200 --> 00:02:38,800
+A verified completion pays a fixed 1.00 tUSDC on Solana Devnet
+(valueless demo token) — read live from RPC for this video.
+
+18
+00:02:39,200 --> 00:02:47,800
+Next: visits fund the intelligence through MagicBlock-native payments —
+experimental, blocked at deposit settlement, not in this release.
+

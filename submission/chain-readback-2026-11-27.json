@@ -1,0 +1,82 @@
+{
+  "completion_tKit": {
+    "account": "tKit7TX2wmCENAG3GmFX9HQrjwCYGsLJEDQDcL7ePvN",
+    "base_owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+    "base_committed": 5,
+    "er_live": 5
+  },
+  "clue_UdYL": {
+    "account": "UdYL9iLzaK7yz8JwuUgiP4bqJUFM3RRT36uacvnohnt",
+    "base_owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+    "base_committed": 3,
+    "er_live": 3
+  },
+  "fixture_A1MW": {
+    "account": "A1MWoo2ksY6yK1UxKpZ1stqXUqHUijzKL5QF5PadY1Xs",
+    "base_owner": "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh",
+    "base_committed": 2,
+    "er_live": 2
+  },
+  "tx": {
+    "payout_H72C": {
+      "sig": "H72C1YWT35Ci8cVavdjmKpWYaB2C9sPBp9HNJ5sxTN7negdoCwxWHGBKXXKA77SQ8RWrE67grbMCQhZ39tx8cpM",
+      "found": true,
+      "where": "https://api.devnet.solana.com",
+      "time": "2026-11-21T08:03:38.000Z",
+      "err": null,
+      "log": "",
+      "transfer": "1000000"
+    },
+    "payout_3KEp": {
+      "sig": "3KEpDqXCkn3VD5EsyNyZy73PLExDf3YmrEdVr1ccsSTpja8vB17XpZbACuUMT48zFy61SrX4vPXLUACzEBcX58fG",
+      "found": true,
+      "where": "https://api.devnet.solana.com",
+      "time": "2026-11-21T19:23:26.000Z",
+      "err": null,
+      "log": "",
+      "transfer": "1000000"
+    },
+    "completion_inc_SeZz": {
+      "sig": "SeZzXjEDhj4NMmcQycj5HBxMqRsf46ZNZ2JPhmxYZzid7uV8HEJwTSF1hbu2Ub6CVcVTqgnokcKLqgfPf493TYd",
+      "found": false
+    },
+    "completion_commit_3aQt": {
+      "sig": "3aQtNLznNUGUH9dfmiBbFuDNa3UknDV8kafWcyUbZXPKCDDqiXroBYksUce9NeSULzQVertMskGVhCecgxxDxFmf",
+      "found": false
+    },
+    "clue_inc_2": {
+      "sig": "3GJXHo7nT6WSqMdMctPngQkYWVfko5pChP7KD8FGT97SZrhJPhJg4VPTZpitV84LXAcF94pexZV5HfN7HimkcGEL",
+      "found": false
+    },
+    "clue_inc_3": {
+      "sig": "3NWPKNjemSomL4pYgaomg7a5Afe6MAr3Uh9tUUwACAztpMwSbbNF4NdLmZ5aYR3Jkzjqg2U6w6G3fhzA2bJbLSNF",
+      "found": false
+    },
+    "clue_commit_2": {
+      "sig": "yaeFreKi9sgJBrvi8Fr1GtX8bjEAWGnYEDtTNY1FFLBuYPYKmBYLe5MVUbRQ8A8CUbRcKi42zLRkLe3vBQpmU9w",
+      "found": false
+    },
+    "clue_commit_3": {
+      "sig": "2UoBdbmrRfPEi7NQz94tzje8ieLjZLZ9CHDEwKacDoT9MDPSnkv3EWH3PZsF7EyfKxCtXqRsN18RfDSE39s1bjej",
+      "found": false
+    },
+    "fixture_inc": {
+      "sig": "3zi9KUW28TWhaV17jLGEmSqvyYU3F14c2fiy7zvt79faBHJ4iLFZaRQrySRqybvZCzvYJ72jphUeZLVbZ2CzkMfo",
+      "found": true,
+      "where": "https://devnet.magicblock.app",
+      "time": "2026-11-25T16:17:47.000Z",
+      "err": null,
+      "log": "Program log: completion counter is now 2"
+    },
+    "fixture_commit": {
+      "sig": "HPhhe3Vn6WeuTj1RvBP2J7oqnecr4sHPY1mobdrrkptasbyKeabXtXSPSRzRUKGyNrhWFjMJ4tmaf14b5NnXwDL",
+      "found": true,
+      "where": "https://devnet.magicblock.app",
+      "time": "2026-11-25T16:17:48.000Z",
+      "err": null,
+      "log": "Program log: completion counter commit scheduled"
+    }
+  },
+  "treasury_sol": 0.232036115,
+  "read_at": "2026-11-27T09:45:09.257Z"
+}
